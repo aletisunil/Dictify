@@ -1,0 +1,620 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000001 /* DictifyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000001 /* DictifyApp.swift */; };
+		A10000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000002 /* AppDelegate.swift */; };
+		A10000003 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000003 /* AppState.swift */; };
+		A10000004 /* KeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000004 /* KeyMonitor.swift */; };
+		A10000005 /* AudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000005 /* AudioEngine.swift */; };
+		A10000006 /* AudioLevelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000006 /* AudioLevelProvider.swift */; };
+		A10000007 /* GroqClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000007 /* GroqClient.swift */; };
+		A10000008 /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000008 /* WhisperService.swift */; };
+		A10000009 /* LlamaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000009 /* LlamaService.swift */; };
+		A10000010 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000010 /* APIError.swift */; };
+		A10000011 /* AccessibilityInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000011 /* AccessibilityInserter.swift */; };
+		A10000012 /* ClipboardPaster.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000012 /* ClipboardPaster.swift */; };
+		A10000013 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000013 /* PermissionManager.swift */; };
+		A10000014 /* TranscriptionPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000014 /* TranscriptionPipeline.swift */; };
+		A10000015 /* DictionaryEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000015 /* DictionaryEntry.swift */; };
+		A10000016 /* Snippet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000016 /* Snippet.swift */; };
+		A10000017 /* TranscriptionRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000017 /* TranscriptionRecord.swift */; };
+		A10000018 /* DictifySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000018 /* DictifySettings.swift */; };
+		A10000019 /* DictionaryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000019 /* DictionaryStore.swift */; };
+		A10000020 /* SnippetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020 /* SnippetStore.swift */; };
+		A10000021 /* HistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000021 /* HistoryStore.swift */; };
+		A10000022 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000022 /* KeychainManager.swift */; };
+		A10000023 /* MenuBarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000023 /* MenuBarManager.swift */; };
+		A10000024 /* MenuBarPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000024 /* MenuBarPopover.swift */; };
+		A10000025 /* IndicatorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000025 /* IndicatorWindow.swift */; };
+		A10000026 /* IndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000026 /* IndicatorView.swift */; };
+		A10000027 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000027 /* WaveformView.swift */; };
+		A10000028 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000028 /* SettingsView.swift */; };
+		A10000029 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000029 /* GeneralSettingsView.swift */; };
+		A10000030 /* DictionarySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000030 /* DictionarySettingsView.swift */; };
+		A10000031 /* SnippetsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000031 /* SnippetsSettingsView.swift */; };
+		A10000032 /* APISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000032 /* APISettingsView.swift */; };
+		A10000033 /* AboutSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000033 /* AboutSettingsView.swift */; };
+		A10000034 /* PermissionOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000034 /* PermissionOnboardingView.swift */; };
+		A10000035 /* WAVEncoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000035 /* WAVEncoder.swift */; };
+		A10000036 /* MultipartFormData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000036 /* MultipartFormData.swift */; };
+		A10000037 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000037 /* Constants.swift */; };
+		A10000038 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000038 /* Assets.xcassets */; };
+		A10000040 /* StatsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000042 /* StatsStore.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B10000000 /* Dictify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dictify.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000001 /* DictifyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictifyApp.swift; sourceTree = "<group>"; };
+		B10000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		B10000003 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		B10000004 /* KeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyMonitor.swift; sourceTree = "<group>"; };
+		B10000005 /* AudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngine.swift; sourceTree = "<group>"; };
+		B10000006 /* AudioLevelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLevelProvider.swift; sourceTree = "<group>"; };
+		B10000007 /* GroqClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqClient.swift; sourceTree = "<group>"; };
+		B10000008 /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
+		B10000009 /* LlamaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaService.swift; sourceTree = "<group>"; };
+		B10000010 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
+		B10000011 /* AccessibilityInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityInserter.swift; sourceTree = "<group>"; };
+		B10000012 /* ClipboardPaster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPaster.swift; sourceTree = "<group>"; };
+		B10000013 /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
+		B10000014 /* TranscriptionPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionPipeline.swift; sourceTree = "<group>"; };
+		B10000015 /* DictionaryEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionaryEntry.swift; sourceTree = "<group>"; };
+		B10000016 /* Snippet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Snippet.swift; sourceTree = "<group>"; };
+		B10000017 /* TranscriptionRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionRecord.swift; sourceTree = "<group>"; };
+		B10000018 /* DictifySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictifySettings.swift; sourceTree = "<group>"; };
+		B10000019 /* DictionaryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionaryStore.swift; sourceTree = "<group>"; };
+		B10000020 /* SnippetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetStore.swift; sourceTree = "<group>"; };
+		B10000021 /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStore.swift; sourceTree = "<group>"; };
+		B10000022 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
+		B10000023 /* MenuBarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarManager.swift; sourceTree = "<group>"; };
+		B10000024 /* MenuBarPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopover.swift; sourceTree = "<group>"; };
+		B10000025 /* IndicatorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndicatorWindow.swift; sourceTree = "<group>"; };
+		B10000026 /* IndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndicatorView.swift; sourceTree = "<group>"; };
+		B10000027 /* WaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
+		B10000028 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		B10000029 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
+		B10000030 /* DictionarySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionarySettingsView.swift; sourceTree = "<group>"; };
+		B10000031 /* SnippetsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetsSettingsView.swift; sourceTree = "<group>"; };
+		B10000032 /* APISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISettingsView.swift; sourceTree = "<group>"; };
+		B10000033 /* AboutSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutSettingsView.swift; sourceTree = "<group>"; };
+		B10000034 /* PermissionOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionOnboardingView.swift; sourceTree = "<group>"; };
+		B10000035 /* WAVEncoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WAVEncoder.swift; sourceTree = "<group>"; };
+		B10000036 /* MultipartFormData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipartFormData.swift; sourceTree = "<group>"; };
+		B10000037 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		B10000038 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B10000039 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B10000040 /* Dictify.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Dictify.entitlements; sourceTree = "<group>"; };
+		B10000042 /* StatsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsStore.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C10000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D10000001 = {
+			isa = PBXGroup;
+			children = (
+				D10000002 /* Dictify */,
+				D10000099 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D10000002 /* Dictify */ = {
+			isa = PBXGroup;
+			children = (
+				D10000003 /* App */,
+				D10000004 /* Core */,
+				D10000010 /* Models */,
+				D10000011 /* Storage */,
+				D10000012 /* UI */,
+				D10000017 /* Utilities */,
+				D10000018 /* Resources */,
+				B10000040 /* Dictify.entitlements */,
+			);
+			path = Dictify;
+			sourceTree = "<group>";
+		};
+		D10000003 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B10000001 /* DictifyApp.swift */,
+				B10000002 /* AppDelegate.swift */,
+				B10000003 /* AppState.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D10000004 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				D10000005 /* HotKey */,
+				D10000006 /* Audio */,
+				D10000007 /* API */,
+				D10000008 /* TextInsertion */,
+				D10000009 /* Permissions */,
+				D10000020 /* Pipeline */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		D10000005 /* HotKey */ = {
+			isa = PBXGroup;
+			children = (
+				B10000004 /* KeyMonitor.swift */,
+			);
+			path = HotKey;
+			sourceTree = "<group>";
+		};
+		D10000006 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				B10000005 /* AudioEngine.swift */,
+				B10000006 /* AudioLevelProvider.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		D10000007 /* API */ = {
+			isa = PBXGroup;
+			children = (
+				B10000007 /* GroqClient.swift */,
+				B10000008 /* WhisperService.swift */,
+				B10000009 /* LlamaService.swift */,
+				B10000010 /* APIError.swift */,
+			);
+			path = API;
+			sourceTree = "<group>";
+		};
+		D10000008 /* TextInsertion */ = {
+			isa = PBXGroup;
+			children = (
+				B10000011 /* AccessibilityInserter.swift */,
+				B10000012 /* ClipboardPaster.swift */,
+			);
+			path = TextInsertion;
+			sourceTree = "<group>";
+		};
+		D10000009 /* Permissions */ = {
+			isa = PBXGroup;
+			children = (
+				B10000013 /* PermissionManager.swift */,
+			);
+			path = Permissions;
+			sourceTree = "<group>";
+		};
+		D10000010 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B10000015 /* DictionaryEntry.swift */,
+				B10000016 /* Snippet.swift */,
+				B10000017 /* TranscriptionRecord.swift */,
+				B10000018 /* DictifySettings.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		D10000011 /* Storage */ = {
+			isa = PBXGroup;
+			children = (
+				B10000019 /* DictionaryStore.swift */,
+				B10000020 /* SnippetStore.swift */,
+				B10000021 /* HistoryStore.swift */,
+				B10000042 /* StatsStore.swift */,
+				B10000022 /* KeychainManager.swift */,
+			);
+			path = Storage;
+			sourceTree = "<group>";
+		};
+		D10000012 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				D10000013 /* MenuBar */,
+				D10000014 /* FloatingIndicator */,
+				D10000015 /* Settings */,
+				D10000016 /* Onboarding */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		D10000013 /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				B10000023 /* MenuBarManager.swift */,
+				B10000024 /* MenuBarPopover.swift */,
+			);
+			path = MenuBar;
+			sourceTree = "<group>";
+		};
+		D10000014 /* FloatingIndicator */ = {
+			isa = PBXGroup;
+			children = (
+				B10000025 /* IndicatorWindow.swift */,
+				B10000026 /* IndicatorView.swift */,
+				B10000027 /* WaveformView.swift */,
+			);
+			path = FloatingIndicator;
+			sourceTree = "<group>";
+		};
+		D10000015 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				B10000028 /* SettingsView.swift */,
+				B10000029 /* GeneralSettingsView.swift */,
+				B10000030 /* DictionarySettingsView.swift */,
+				B10000031 /* SnippetsSettingsView.swift */,
+				B10000032 /* APISettingsView.swift */,
+				B10000033 /* AboutSettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		D10000016 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				B10000034 /* PermissionOnboardingView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		D10000017 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				B10000035 /* WAVEncoder.swift */,
+				B10000036 /* MultipartFormData.swift */,
+				B10000037 /* Constants.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		D10000018 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B10000038 /* Assets.xcassets */,
+				B10000039 /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		D10000020 /* Pipeline */ = {
+			isa = PBXGroup;
+			children = (
+				B10000014 /* TranscriptionPipeline.swift */,
+			);
+			path = Pipeline;
+			sourceTree = "<group>";
+		};
+		D10000099 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B10000000 /* Dictify.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E10000001 /* Dictify */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F10000003 /* Build configuration list for PBXNativeTarget "Dictify" */;
+			buildPhases = (
+				E10000002 /* Sources */,
+				C10000001 /* Frameworks */,
+				E10000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Dictify;
+			productName = Dictify;
+			productReference = B10000000 /* Dictify.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E10000010 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 2640;
+				TargetAttributes = {
+					E10000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = F10000001 /* Build configuration list for PBXProject "Dictify" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = D10000001;
+			productRefGroup = D10000099 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E10000001 /* Dictify */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E10000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000038 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E10000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000001 /* DictifyApp.swift in Sources */,
+				A10000002 /* AppDelegate.swift in Sources */,
+				A10000003 /* AppState.swift in Sources */,
+				A10000004 /* KeyMonitor.swift in Sources */,
+				A10000005 /* AudioEngine.swift in Sources */,
+				A10000006 /* AudioLevelProvider.swift in Sources */,
+				A10000007 /* GroqClient.swift in Sources */,
+				A10000008 /* WhisperService.swift in Sources */,
+				A10000009 /* LlamaService.swift in Sources */,
+				A10000010 /* APIError.swift in Sources */,
+				A10000011 /* AccessibilityInserter.swift in Sources */,
+				A10000012 /* ClipboardPaster.swift in Sources */,
+				A10000013 /* PermissionManager.swift in Sources */,
+				A10000014 /* TranscriptionPipeline.swift in Sources */,
+				A10000015 /* DictionaryEntry.swift in Sources */,
+				A10000016 /* Snippet.swift in Sources */,
+				A10000017 /* TranscriptionRecord.swift in Sources */,
+				A10000018 /* DictifySettings.swift in Sources */,
+				A10000019 /* DictionaryStore.swift in Sources */,
+				A10000020 /* SnippetStore.swift in Sources */,
+				A10000021 /* HistoryStore.swift in Sources */,
+				A10000022 /* KeychainManager.swift in Sources */,
+				A10000023 /* MenuBarManager.swift in Sources */,
+				A10000024 /* MenuBarPopover.swift in Sources */,
+				A10000025 /* IndicatorWindow.swift in Sources */,
+				A10000026 /* IndicatorView.swift in Sources */,
+				A10000027 /* WaveformView.swift in Sources */,
+				A10000028 /* SettingsView.swift in Sources */,
+				A10000029 /* GeneralSettingsView.swift in Sources */,
+				A10000030 /* DictionarySettingsView.swift in Sources */,
+				A10000031 /* SnippetsSettingsView.swift in Sources */,
+				A10000032 /* APISettingsView.swift in Sources */,
+				A10000033 /* AboutSettingsView.swift in Sources */,
+				A10000034 /* PermissionOnboardingView.swift in Sources */,
+				A10000035 /* WAVEncoder.swift in Sources */,
+				A10000036 /* MultipartFormData.swift in Sources */,
+				A10000037 /* Constants.swift in Sources */,
+				A10000040 /* StatsStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F10000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F10000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		F10000012 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Dictify/Dictify.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Dictify/Resources/Info.plist;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dictify needs microphone access to transcribe your voice.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app;
+				PRODUCT_NAME = Dictify;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		F10000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Dictify/Dictify.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Dictify/Resources/Info.plist;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dictify needs microphone access to transcribe your voice.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app;
+				PRODUCT_NAME = Dictify;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F10000001 /* Build configuration list for PBXProject "Dictify" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F10000010 /* Debug */,
+				F10000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F10000003 /* Build configuration list for PBXNativeTarget "Dictify" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F10000012 /* Debug */,
+				F10000013 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E10000010 /* Project object */;
+}
