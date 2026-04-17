@@ -41,6 +41,11 @@ struct AboutSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Button("Show Onboarding Again") {
+                AppDelegate.shared?.showOnboarding()
+            }
+            .controlSize(.regular)
+
             Spacer()
 
             Text("\u{00A9} 2026 Sunil Aleti")

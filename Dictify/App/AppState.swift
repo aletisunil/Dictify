@@ -8,7 +8,6 @@ enum PipelineState: Equatable {
     case transcribing
     case refining
     case inserting
-    case done
     case error(String)
 
     var isProcessing: Bool {
@@ -25,7 +24,6 @@ enum PipelineState: Equatable {
         case .transcribing: return "Transcribing..."
         case .refining: return "Refining..."
         case .inserting: return "Inserting..."
-        case .done: return "Done"
         case .error(let msg): return msg
         }
     }
@@ -76,14 +74,18 @@ final class AppState: ObservableObject {
 
     var keychainManager: KeychainManager? {
         didSet {
-            refreshAPIKeyStatus()
+            hasAPIKeyConfigured = keychainManager?.hasStoredAPIKeyHint == true
         }
     }
 
     let settings = DictifySettings()
 
     func refreshAPIKeyStatus() {
-        hasAPIKeyConfigured = keychainManager?.hasAPIKey == true
+        hasAPIKeyConfigured = keychainManager?.refreshStoredAPIKeyHint() == true
+    }
+
+    func refreshAPIKeyStatusFromStoredHint() {
+        hasAPIKeyConfigured = keychainManager?.hasStoredAPIKeyHint == true
     }
 
     func playSound(_ name: String) {

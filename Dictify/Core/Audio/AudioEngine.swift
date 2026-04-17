@@ -1,37 +1,81 @@
 @preconcurrency import AVFoundation
 import Accelerate
+import AppKit
+import os
+
+/// Reason why an in-flight recording was forcibly terminated.
+///
+/// The pipeline surfaces these to the user as recoverable errors — none are crashes.
+enum AudioEngineInterruption: Sendable, Equatable {
+    case deviceChanged
+    case systemSleep
+    case bufferOverflow
+    case conversionFailed(String)
+
+    var userMessage: String {
+        switch self {
+        case .deviceChanged: return "Audio device changed. Please try again."
+        case .systemSleep: return "Recording interrupted by sleep."
+        case .bufferOverflow: return "Recording too long — please try again."
+        case .conversionFailed: return "Audio conversion failed. Please try again."
+        }
+    }
+}
 
 final class AudioEngine: @unchecked Sendable {
+    // Serial queue guarding *all* mutable state below. Never block the audio
+    // thread on it for long — only short `sync` appends + state reads.
+    private let stateQueue = DispatchQueue(label: "com.dictify.audioengine.state")
+
     private let engine = AVAudioEngine()
+
+    // --- state guarded by stateQueue ---
     private var audioBuffer = Data()
     private var recordingStartTime: Date?
     private var tapInstalled = false
-    private let bufferLock = NSLock()
+    private var currentConverter: AVAudioConverter?
+    private var currentTargetFormat: AVAudioFormat?
+    private var currentInputSampleRate: Double = 0
+    private var overflowed = false
+    // ------------------------------------
+
+    private var configObserver: NSObjectProtocol?
+    private var sleepObserver: NSObjectProtocol?
+    private var interruptionHandler: (@Sendable (AudioEngineInterruption) -> Void)?
 
     private let targetSampleRate: Double = Constants.Audio.sampleRate
     private let targetChannels: AVAudioChannelCount = AVAudioChannelCount(Constants.Audio.channels)
 
-    var isRecording: Bool { engine.isRunning && tapInstalled }
+    /// Belt-and-braces cap on captured PCM. The primary safeguard is the
+    /// `maxRecordingDuration` timer in `TranscriptionPipeline`; this protects
+    /// against a runaway tap callback if the timer is delayed or leaks.
+    private static let maxBufferBytes: Int = 50 * 1024 * 1024
 
-    var recordingDuration: TimeInterval {
-        guard let start = recordingStartTime else { return 0 }
-        return Date().timeIntervalSince(start)
+    var isRecording: Bool {
+        let tapped = stateQueue.sync { tapInstalled }
+        return tapped && engine.isRunning
     }
 
-    func startCapture(levelCallback: @escaping @MainActor @Sendable ([Float]) -> Void) throws {
-        guard !isRecording else {
-            throw AudioEngineError.alreadyRecording
+    var recordingDuration: TimeInterval {
+        stateQueue.sync {
+            guard let start = recordingStartTime else { return 0 }
+            return Date().timeIntervalSince(start)
         }
+    }
 
-        bufferLock.lock()
-        audioBuffer = Data()
-        audioBuffer.reserveCapacity(Int(targetSampleRate * Double(Constants.Audio.maxRecordingDuration)) * MemoryLayout<Float>.size)
-        bufferLock.unlock()
-        recordingStartTime = Date()
+    /// Begin capture. `onInterruption` is invoked (on main) when the engine is
+    /// torn down due to a device/route change, system sleep, buffer overflow,
+    /// or converter error. Callers should treat it as a terminal error signal
+    /// for the current recording.
+    func startCapture(
+        levelCallback: @escaping @MainActor @Sendable ([Float]) -> Void,
+        onInterruption: @escaping @Sendable (AudioEngineInterruption) -> Void
+    ) throws {
+        let already = stateQueue.sync { tapInstalled }
+        guard !already else { throw AudioEngineError.alreadyRecording }
 
         let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
-
         guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
             throw AudioEngineError.inputUnavailable
         }
@@ -49,67 +93,194 @@ final class AudioEngine: @unchecked Sendable {
             throw AudioEngineError.converterCreationFailed
         }
 
-        let bufferSize: AVAudioFrameCount = 4096
-
-        inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: inputFormat) { [weak self] buffer, _ in
-            guard let self = self else { return }
-
-            let frameCount = AVAudioFrameCount(
-                max(1, ceil(Double(buffer.frameLength) * self.targetSampleRate / inputFormat.sampleRate))
+        stateQueue.sync {
+            audioBuffer = Data()
+            audioBuffer.reserveCapacity(
+                Int(targetSampleRate * Double(Constants.Audio.maxRecordingDuration)) * MemoryLayout<Float>.size
             )
-            guard let convertedBuffer = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: frameCount) else { return }
-
-            var error: NSError?
-            converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
-                outStatus.pointee = .haveData
-                return buffer
-            }
-
-            if error == nil, let channelData = convertedBuffer.floatChannelData {
-                let frameLength = Int(convertedBuffer.frameLength)
-                let samples = channelData[0]
-                let byteCount = frameLength * MemoryLayout<Float>.size
-
-                self.bufferLock.lock()
-                samples.withMemoryRebound(to: UInt8.self, capacity: byteCount) { bytes in
-                    self.audioBuffer.append(bytes, count: byteCount)
-                }
-                self.bufferLock.unlock()
-
-                let levels = self.computeLevels(from: samples, count: frameLength)
-                Task { @MainActor in
-                    levelCallback(levels)
-                }
-            }
+            recordingStartTime = Date()
+            currentConverter = converter
+            currentTargetFormat = targetFormat
+            currentInputSampleRate = inputFormat.sampleRate
+            overflowed = false
         }
-        tapInstalled = true
+        interruptionHandler = onInterruption
+
+        let bufferSize: AVAudioFrameCount = 4096
+        inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: inputFormat) { [weak self] buffer, _ in
+            self?.handleTap(buffer: buffer, levelCallback: levelCallback)
+        }
+        stateQueue.sync { tapInstalled = true }
+
+        installObservers()
 
         do {
             try engine.start()
         } catch {
+            // Roll back partial state; do not fire interruption handler for a
+            // start failure — the throw is the signal.
             inputNode.removeTap(onBus: 0)
-            tapInstalled = false
-            recordingStartTime = nil
+            removeObservers()
+            stateQueue.sync {
+                tapInstalled = false
+                recordingStartTime = nil
+                currentConverter = nil
+                currentTargetFormat = nil
+                currentInputSampleRate = 0
+                audioBuffer = Data()
+            }
+            interruptionHandler = nil
             throw error
         }
     }
 
-    @discardableResult
-    func stopCapture() -> Data {
-        if tapInstalled {
+    private func handleTap(
+        buffer: AVAudioPCMBuffer,
+        levelCallback: @escaping @MainActor @Sendable ([Float]) -> Void
+    ) {
+        let (converter, targetFormat, inputSampleRate, isOverflowed) = stateQueue.sync {
+            (currentConverter, currentTargetFormat, currentInputSampleRate, overflowed)
+        }
+        guard !isOverflowed else { return }
+        guard let converter = converter,
+              let targetFormat = targetFormat,
+              inputSampleRate > 0 else { return }
+
+        let frameCapacity = AVAudioFrameCount(
+            max(1, ceil(Double(buffer.frameLength) * self.targetSampleRate / inputSampleRate))
+        )
+        guard let converted = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: frameCapacity) else {
+            return
+        }
+
+        var error: NSError?
+        converter.convert(to: converted, error: &error) { _, outStatus in
+            outStatus.pointee = .haveData
+            return buffer
+        }
+
+        if let error = error {
+            Log.audio.error("Audio converter failed: \(error.localizedDescription, privacy: .public)")
+            fireInterruption(.conversionFailed(error.localizedDescription))
+            return
+        }
+
+        guard let channelData = converted.floatChannelData else { return }
+        let frameLength = Int(converted.frameLength)
+        guard frameLength > 0 else { return }
+
+        let byteCount = frameLength * MemoryLayout<Float>.size
+        let samples = channelData[0]
+
+        var didOverflow = false
+        stateQueue.sync {
+            let projected = audioBuffer.count + byteCount
+            if projected > AudioEngine.maxBufferBytes {
+                overflowed = true
+                didOverflow = true
+                return
+            }
+            samples.withMemoryRebound(to: UInt8.self, capacity: byteCount) { bytes in
+                audioBuffer.append(bytes, count: byteCount)
+            }
+        }
+
+        if didOverflow {
+            Log.audio.error("Audio buffer exceeded \(AudioEngine.maxBufferBytes) bytes — stopping capture")
+            fireInterruption(.bufferOverflow)
+            return
+        }
+
+        let levels = computeLevels(from: samples, count: frameLength)
+        Task { @MainActor in
+            levelCallback(levels)
+        }
+    }
+
+    private func fireInterruption(_ reason: AudioEngineInterruption) {
+        // Always deliver on main so the pipeline can mutate UI state safely.
+        let handler = interruptionHandler
+        DispatchQueue.main.async {
+            handler?(reason)
+        }
+    }
+
+    private func installObservers() {
+        let nc = NotificationCenter.default
+        configObserver = nc.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            Log.audio.notice("AVAudioEngine configuration change — tearing down capture")
+            self.tearDown(reason: .deviceChanged)
+        }
+
+        let wsNC = NSWorkspace.shared.notificationCenter
+        sleepObserver = wsNC.addObserver(
+            forName: NSWorkspace.willSleepNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            Log.audio.notice("System will sleep — tearing down capture")
+            self.tearDown(reason: .systemSleep)
+        }
+    }
+
+    private func removeObservers() {
+        if let observer = configObserver {
+            NotificationCenter.default.removeObserver(observer)
+            configObserver = nil
+        }
+        if let observer = sleepObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            sleepObserver = nil
+        }
+    }
+
+    /// Force-stop the engine and notify the pipeline with `reason`.
+    private func tearDown(reason: AudioEngineInterruption) {
+        let tapped = stateQueue.sync { tapInstalled }
+        if tapped {
             engine.inputNode.removeTap(onBus: 0)
-            tapInstalled = false
         }
         if engine.isRunning {
             engine.stop()
         }
+        stateQueue.sync {
+            tapInstalled = false
+        }
+        removeObservers()
 
-        bufferLock.lock()
-        let result = audioBuffer
-        audioBuffer = Data()
-        bufferLock.unlock()
-        recordingStartTime = nil
-        return result
+        let handler = interruptionHandler
+        handler?(reason)
+    }
+
+    @discardableResult
+    func stopCapture() -> Data {
+        let tapped = stateQueue.sync { tapInstalled }
+        if tapped {
+            engine.inputNode.removeTap(onBus: 0)
+        }
+        if engine.isRunning {
+            engine.stop()
+        }
+        removeObservers()
+        interruptionHandler = nil
+
+        return stateQueue.sync {
+            tapInstalled = false
+            let result = audioBuffer
+            audioBuffer = Data()
+            recordingStartTime = nil
+            currentConverter = nil
+            currentTargetFormat = nil
+            currentInputSampleRate = 0
+            overflowed = false
+            return result
+        }
     }
 
     private func computeLevels(from samples: UnsafePointer<Float>, count: Int, barCount: Int = 15) -> [Float] {
@@ -121,9 +292,7 @@ final class AudioEngine: @unchecked Sendable {
         for i in 0..<barCount {
             let start = i * chunkSize
             let end = min(start + chunkSize, count)
-            guard start < end else {
-                continue
-            }
+            guard start < end else { continue }
 
             var rms: Float = 0
             vDSP_measqv(samples.advanced(by: start), 1, &rms, vDSP_Length(end - start))
@@ -137,7 +306,8 @@ final class AudioEngine: @unchecked Sendable {
     }
 
     deinit {
-        stopCapture()
+        removeObservers()
+        if engine.isRunning { engine.stop() }
     }
 }
 

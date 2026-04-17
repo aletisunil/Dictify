@@ -34,6 +34,7 @@ final class AccessibilityInserter: @unchecked Sendable {
         var postEventAccessGranted = false
         var selectedTextSetError: AXError?
         var valueSetError: AXError?
+        var skippedForBundlePolicy = false
 
         var isSecureOrProtected: Bool {
             secureEventInputEnabled
@@ -70,12 +71,20 @@ final class AccessibilityInserter: @unchecked Sendable {
 
     @MainActor
     func insert(_ text: String) async -> InsertionResult {
+        let bundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         var diagnostics = Diagnostics(
-            frontmostBundleID: NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "unknown",
+            frontmostBundleID: bundleID ?? "unknown",
             frontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier
         )
         diagnostics.secureEventInputEnabled = IsSecureEventInputEnabled()
         diagnostics.postEventAccessGranted = CGPreflightPostEventAccess()
+
+        // Apps known to break AX insertion (Slack/Discord/Notion/WhatsApp) —
+        // skip straight to clipboard without wasting a verification round-trip.
+        if ClipboardPaster.shouldSkipAccessibilityFor(bundleID: bundleID) {
+            diagnostics.skippedForBundlePolicy = true
+            return InsertionResult(inserted: false, diagnostics: diagnostics)
+        }
 
         let systemWide = AXUIElementCreateSystemWide()
         var focusedElement: CFTypeRef?
@@ -102,6 +111,11 @@ final class AccessibilityInserter: @unchecked Sendable {
         (diagnostics.valueSettable, diagnostics.valueSettableError) = Self.isAttributeSettable(axElement, kAXValueAttribute as CFString)
         (diagnostics.supportsInsertTextAction, diagnostics.insertTextActionError) = Self.supportsAction(axElement, "AXInsertText" as CFString)
         (diagnostics.protectedContent, diagnostics.protectedContentError) = Self.boolAttribute(axElement, NSAccessibility.Attribute.containsProtectedContent.rawValue as CFString)
+
+        // Never inject into password / secure fields.
+        if diagnostics.isSecureOrProtected {
+            return InsertionResult(inserted: false, diagnostics: diagnostics)
+        }
 
         let textRoles = [
             kAXTextFieldRole as String,
@@ -161,6 +175,19 @@ final class AccessibilityInserter: @unchecked Sendable {
         AXIsProcessTrusted()
     }
 
+    /// Post a VoiceOver-friendly announcement. Silent when VO is off.
+    @MainActor
+    static func announceInsertionSuccess() {
+        NSAccessibility.post(
+            element: NSApp as Any,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: "Text inserted",
+                .priority: NSAccessibilityPriorityLevel.medium.rawValue
+            ]
+        )
+    }
+
     private static func stringAttribute(_ element: AXUIElement, _ attribute: CFString) -> String? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, attribute, &value) == .success else {
@@ -215,7 +242,7 @@ final class AccessibilityInserter: @unchecked Sendable {
         }
 
         if CFGetTypeID(value) == CFBooleanGetTypeID() {
-            return (CFBooleanGetValue((value as! CFBoolean)), result)
+            return (CFBooleanGetValue(value as! CFBoolean), result)
         }
 
         return (value as? Bool, result)

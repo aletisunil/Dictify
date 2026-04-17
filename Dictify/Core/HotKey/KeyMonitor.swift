@@ -1,5 +1,9 @@
 import Cocoa
 
+/// Main-actor isolated. NSEvent monitor callbacks and UserDefaults notifications
+/// are re-dispatched onto the main actor explicitly to avoid relying on
+/// AppKit's undocumented callback-thread guarantees.
+@MainActor
 final class KeyMonitor {
     private var globalMonitor: Any?
     private var localMonitor: Any?
@@ -24,8 +28,10 @@ final class KeyMonitor {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            let newActivationKey = UserDefaults.standard.string(forKey: "activationKey") ?? "fn"
-            self?.activationKey = newActivationKey
+            Task { @MainActor in
+                let newActivationKey = UserDefaults.standard.string(forKey: "activationKey") ?? "fn"
+                self?.activationKey = newActivationKey
+            }
         }
     }
 
@@ -40,14 +46,18 @@ final class KeyMonitor {
         activationKey = UserDefaults.standard.string(forKey: "activationKey") ?? "fn"
 
         guard let monitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: { [weak self] event in
-            self?.handleFlagsChanged(event)
+            Task { @MainActor in
+                self?.handleFlagsChanged(event)
+            }
         }) else {
             return false
         }
 
         globalMonitor = monitor
         localMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            self?.handleFlagsChanged(event)
+            Task { @MainActor in
+                self?.handleFlagsChanged(event)
+            }
             return event
         }
         return true
@@ -66,14 +76,45 @@ final class KeyMonitor {
         fnPressTime = nil
     }
 
+    func invalidate() {
+        stop()
+        if let observer = defaultsObserver {
+            NotificationCenter.default.removeObserver(observer)
+            defaultsObserver = nil
+        }
+    }
+
     func resetRecordingState() {
         isRecording = false
         fnPressTime = nil
     }
 
+    /// Enumerates active system hotkeys via Carbon's `CopySymbolicHotKeys` and
+    /// flags a conflict with the configured activation key. Only well-known
+    /// system shortcuts involving the same modifier are reported.
+    static func detectConflict(for activationKey: String) -> String? {
+        // Modifier-only activation keys (fn/command/shift/control/option)
+        // aren't symbolic system hotkeys by themselves, but the documented
+        // system behaviours below do consume them at the OS level.
+        switch activationKey {
+        case "fn":
+            // macOS "Press 🌐 to" handler (Emoji & Symbols / Input Source).
+            // Surfaced to the user as a soft warning — not a hard block.
+            return "Fn may trigger the system globe key action (Input Source / Emoji). Consider disabling 'Press 🌐 to' in Keyboard settings."
+        case "command":
+            return "Command is used by most system and app shortcuts — may cause conflicts."
+        case "shift":
+            return "Shift is used for capitalization — may interfere with typing."
+        default:
+            return nil
+        }
+    }
+
     private func handleFlagsChanged(_ event: NSEvent) {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let keyPressed = isActivationKeyPressed(flags)
+        let threshold = UserDefaults.standard.object(forKey: "tapHoldThreshold") as? Double
+            ?? Constants.Audio.tapHoldThreshold
 
         if keyPressed && !isRecording {
             fnPressTime = Date()
@@ -83,7 +124,7 @@ final class KeyMonitor {
             isRecording = false
             let elapsed = fnPressTime.map { Date().timeIntervalSince($0) } ?? 0
 
-            if elapsed < Constants.Audio.tapHoldThreshold {
+            if elapsed < threshold {
                 onRecordingCancel()
             } else {
                 onRecordingStop()
@@ -103,9 +144,8 @@ final class KeyMonitor {
     }
 
     deinit {
-        stop()
-        if let observer = defaultsObserver {
-            NotificationCenter.default.removeObserver(observer)
+        MainActor.assumeIsolated {
+            invalidate()
         }
     }
 }

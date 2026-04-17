@@ -6,6 +6,7 @@ final class PermissionManager: ObservableObject {
     @Published var microphoneGranted = false
     @Published var accessibilityGranted = false
     private var accessibilityPollTask: Task<Void, Never>?
+    private var activationObserver: NSObjectProtocol?
     private let systemSettingsBundleIdentifiers = [
         "com.apple.systempreferences",
         "com.apple.SystemPreferences"
@@ -16,6 +17,23 @@ final class PermissionManager: ObservableObject {
     }
 
     init() {
+        checkAll()
+        // When Dictify regains focus (user returning from System Settings),
+        // re-check both permissions immediately — no timer needed.
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.refreshAll()
+            }
+        }
+    }
+
+    /// Called from `AppDelegate.applicationDidBecomeActive(_:)` and anywhere
+    /// else that should prompt a full permission re-check. Idempotent.
+    func refreshAll() {
         checkAll()
     }
 
@@ -46,13 +64,25 @@ final class PermissionManager: ObservableObject {
     }
 
     func requestAccessibilityPermission() {
+        // Only show the system "grant access" alert when we're actually not trusted.
+        // AXIsProcessTrustedWithOptions(prompt:true) will re-show the dialog even
+        // after the user already granted permission, which is what they see as a
+        // "stuck" popup when returning from System Settings.
+        guard !AXIsProcessTrusted() else {
+            checkAccessibilityPermission()
+            return
+        }
         let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
         checkAccessibilityPermission()
     }
 
-    func openAccessibilitySettings() {
-        requestAccessibilityPermission()
+    func openAccessibilitySettings(showSystemPrompt: Bool = false) {
+        // Opening the pane is silent by default. The system Accessibility alert
+        // should only appear from an explicit onboarding permission action.
+        if showSystemPrompt && !AXIsProcessTrusted() {
+            requestAccessibilityPermission()
+        }
         openFirstWorkingURL([
             "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
             "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility"
@@ -135,7 +165,18 @@ final class PermissionManager: ObservableObject {
         accessibilityPollTask = nil
     }
 
-    deinit {
+    func invalidate() {
         accessibilityPollTask?.cancel()
+        accessibilityPollTask = nil
+        if let observer = activationObserver {
+            NotificationCenter.default.removeObserver(observer)
+            activationObserver = nil
+        }
+    }
+
+    deinit {
+        MainActor.assumeIsolated {
+            invalidate()
+        }
     }
 }

@@ -29,6 +29,14 @@ struct PermissionOnboardingView: View {
     @State private var showKey = false
     @State private var didSaveKey = false
     @State private var saveError: String?
+    @State private var validationError: String?
+    @State private var isTestingKey = false
+    @State private var testKeyResult: OnboardingTestResult?
+
+    enum OnboardingTestResult: Equatable {
+        case success
+        case failure(String)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -103,10 +111,7 @@ struct PermissionOnboardingView: View {
         .frame(width: 560, height: 620)
         .onAppear {
             permissionManager.checkAll()
-            if let key = keychainManager?.getAPIKey(), !key.isEmpty {
-                apiKey = key
-                didSaveKey = true
-            }
+            didSaveKey = keychainManager?.hasStoredAPIKeyHint == true
         }
     }
 
@@ -197,6 +202,9 @@ struct PermissionOnboardingView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
+        .onAppear {
+            didSaveKey = keychainManager?.hasStoredAPIKeyHint == true
+        }
     }
 
     // MARK: - Page 2: Features
@@ -385,41 +393,49 @@ struct PermissionOnboardingView: View {
                 .frame(height: 16)
 
             VStack(spacing: 10) {
-                Button(action: {
-                    saveError = nil
-                    let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-
-                    guard !trimmedKey.isEmpty else {
-                        goForward()
-                        return
+                HStack(spacing: 10) {
+                    Button(action: {
+                        saveAndContinue()
+                    }) {
+                        Text(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Skip for Now" : "Save & Continue")
+                            .frame(width: 160)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
 
-                    guard let km = keychainManager else {
-                        didSaveKey = false
-                        saveError = "Unable to access Keychain. Please try again."
-                        return
+                    Button(action: { testKey() }) {
+                        if isTestingKey {
+                            ProgressView().scaleEffect(0.6)
+                                .frame(width: 80)
+                        } else {
+                            Text("Test Key").frame(width: 80)
+                        }
                     }
-
-                    didSaveKey = km.saveAPIKey(trimmedKey)
-                    if didSaveKey {
-                        apiKey = trimmedKey
-                        onAPIKeySaved()
-                        goForward()
-                    } else {
-                        saveError = "Could not save your API key to Keychain. Please try again."
-                    }
-                }) {
-                    Text(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Skip for Now" : "Save & Continue")
-                        .frame(width: 160)
+                    .controlSize(.large)
+                    .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isTestingKey)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
 
-                if let saveError {
+                if let validationError {
+                    Text(validationError)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                } else if let saveError {
                     Text(saveError)
                         .font(.caption2)
                         .foregroundStyle(.red)
                         .multilineTextAlignment(.center)
+                } else if let testKeyResult {
+                    switch testKeyResult {
+                    case .success:
+                        Label("API key works", systemImage: "checkmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                    case .failure(let msg):
+                        Label(msg, systemImage: "xmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                    }
                 } else if !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !didSaveKey {
                     Text("Key will be saved when you continue")
                         .font(.caption2)
@@ -430,6 +446,106 @@ struct PermissionOnboardingView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - API Key helpers
+
+    private func validate(_ key: String) -> String? {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        if trimmed != key {
+            return "Key has leading/trailing whitespace — paste without it."
+        }
+        if !trimmed.hasPrefix("gsk_") {
+            return "Groq keys start with \"gsk_\". Double-check what you pasted."
+        }
+        if trimmed.count < 20 {
+            return "That key looks too short. Copy the full value from console.groq.com."
+        }
+        return nil
+    }
+
+    private func saveAndContinue() {
+        saveError = nil
+        validationError = nil
+        testKeyResult = nil
+
+        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else {
+            goForward()
+            return
+        }
+
+        if let issue = validate(apiKey) {
+            validationError = issue
+            return
+        }
+
+        guard let km = keychainManager else {
+            didSaveKey = false
+            saveError = "Unable to access Keychain. Please try again."
+            return
+        }
+
+        didSaveKey = km.saveAPIKey(trimmedKey)
+        if didSaveKey {
+            apiKey = trimmedKey
+            onAPIKeySaved()
+            goForward()
+        } else {
+            saveError = "Could not save your API key to Keychain. Please try again."
+        }
+    }
+
+    private func testKey() {
+        validationError = nil
+        saveError = nil
+        testKeyResult = nil
+
+        if let issue = validate(apiKey) {
+            validationError = issue
+            return
+        }
+
+        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let km = keychainManager else { return }
+
+        // Persist the key before testing so GroqClient can read it back.
+        _ = km.saveAPIKey(trimmed)
+        apiKey = trimmed
+
+        isTestingKey = true
+        Task {
+            let result = await Self.testKeyAgainstGroq(keychainManager: km)
+            await MainActor.run {
+                self.testKeyResult = result
+                self.isTestingKey = false
+                if case .success = result {
+                    self.didSaveKey = true
+                    self.onAPIKeySaved()
+                }
+            }
+        }
+    }
+
+    private static func testKeyAgainstGroq(keychainManager: KeychainManager) async -> OnboardingTestResult {
+        let client = GroqClient(keychainManager: keychainManager)
+        guard let url = URL(string: Constants.API.modelsEndpoint) else {
+            return .failure("Internal error")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        do {
+            _ = try await client.performRequest(request)
+            return .success
+        } catch APIError.unauthorized {
+            return .failure("Key rejected by Groq (401). Check it at console.groq.com.")
+        } catch APIError.networkError {
+            return .failure("No internet connection.")
+        } catch {
+            return .failure(error.localizedDescription)
+        }
     }
 
     // MARK: - Page 5: Completion
@@ -477,7 +593,7 @@ struct PermissionOnboardingView: View {
             .padding(.horizontal, 50)
             .padding(.top, 12)
 
-            if keychainManager?.hasAPIKey != true {
+            if keychainManager?.hasStoredAPIKeyHint != true {
                 HStack(spacing: 4) {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(.orange)

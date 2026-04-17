@@ -46,6 +46,10 @@
 		A10000037 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000037 /* Constants.swift */; };
 		A10000038 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000038 /* Assets.xcassets */; };
 		A10000040 /* StatsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000042 /* StatsStore.swift */; };
+		A10000041 /* Log.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000043 /* Log.swift */; };
+		A10000042 /* TokenBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000044 /* TokenBudget.swift */; };
+		A10000043 /* StorageQuarantine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000045 /* StorageQuarantine.swift */; };
+		A10000044 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000046 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -91,6 +95,10 @@
 		B10000039 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B10000040 /* Dictify.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Dictify.entitlements; sourceTree = "<group>"; };
 		B10000042 /* StatsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsStore.swift; sourceTree = "<group>"; };
+		B10000043 /* Log.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Log.swift; sourceTree = "<group>"; };
+		B10000044 /* TokenBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenBudget.swift; sourceTree = "<group>"; };
+		B10000045 /* StorageQuarantine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageQuarantine.swift; sourceTree = "<group>"; };
+		B10000046 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -214,6 +222,7 @@
 				B10000021 /* HistoryStore.swift */,
 				B10000042 /* StatsStore.swift */,
 				B10000022 /* KeychainManager.swift */,
+				B10000045 /* StorageQuarantine.swift */,
 			);
 			path = Storage;
 			sourceTree = "<group>";
@@ -275,6 +284,8 @@
 				B10000035 /* WAVEncoder.swift */,
 				B10000036 /* MultipartFormData.swift */,
 				B10000037 /* Constants.swift */,
+				B10000043 /* Log.swift */,
+				B10000044 /* TokenBudget.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -284,6 +295,7 @@
 			children = (
 				B10000038 /* Assets.xcassets */,
 				B10000039 /* Info.plist */,
+				B10000046 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -363,6 +375,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000038 /* Assets.xcassets in Resources */,
+				A10000044 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -411,6 +424,9 @@
 				A10000036 /* MultipartFormData.swift in Sources */,
 				A10000037 /* Constants.swift in Sources */,
 				A10000040 /* StatsStore.swift in Sources */,
+				A10000041 /* Log.swift in Sources */,
+				A10000042 /* TokenBudget.swift in Sources */,
+				A10000043 /* StorageQuarantine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -547,7 +563,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 5432YAY2UX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Dictify/Resources/Info.plist;
@@ -575,7 +591,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 5432YAY2UX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Dictify/Resources/Info.plist;

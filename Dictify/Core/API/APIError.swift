@@ -9,6 +9,7 @@ enum APIError: Error, LocalizedError {
     case noAPIKey
     case emptyTranscription
     case invalidResponse
+    case cancelled
 
     var errorDescription: String? {
         switch self {
@@ -31,6 +32,8 @@ enum APIError: Error, LocalizedError {
             return "Couldn't detect speech. Try again."
         case .invalidResponse:
             return "Invalid response from API."
+        case .cancelled:
+            return "Request cancelled."
         }
     }
 }

@@ -11,6 +11,8 @@ private final class FirstMouseHostingView<Content: View>: NSHostingView<Content>
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    static private(set) weak var shared: AppDelegate?
+
     let appState = AppState()
     private var menuBarManager: MenuBarManager?
     private var indicatorWindow: IndicatorWindow?
@@ -22,6 +24,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isCompletingOnboarding = false
     private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
+
+    override init() {
+        super.init()
+        AppDelegate.shared = self
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.accessory)
@@ -76,11 +83,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
 
-        if !permissionManager!.allPermissionsGranted {
+        if permissionManager?.allPermissionsGranted != true {
             showOnboarding()
         } else {
             startKeyMonitor()
         }
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        permissionManager?.refreshAll()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        keyMonitor?.invalidate()
+        permissionManager?.invalidate()
+        indicatorWindow?.invalidate()
     }
 
     private func ensureAppSupportDirectory() {
@@ -88,7 +105,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !FileManager.default.fileExists(atPath: dir.path) {
             do {
                 try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            } catch {}
+            } catch {
+                Log.storage.error("Failed to create Application Support dir: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
@@ -118,6 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "Dictify Settings"
         window.center()
         window.contentView = NSHostingView(rootView: settingsView)
+        window.contentMinSize = NSSize(width: 550, height: 450)
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -125,8 +145,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor
-    private func showOnboarding() {
-        permissionManager?.checkAll()
+    func showOnboarding() {
+        guard let permissionManager else {
+            Log.ui.error("showOnboarding called before permissionManager was initialized")
+            return
+        }
+
+        permissionManager.checkAll()
         if let window = onboardingWindow {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -134,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let onboardingView = PermissionOnboardingView(
-            permissionManager: permissionManager!,
+            permissionManager: permissionManager,
             keychainManager: appState.keychainManager,
             onAccessibilityPermissionRequest: { [weak self] in
                 self?.prepareOnboardingWindowForAccessibilityPrompt()
@@ -172,7 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // When the accessibility permission is detected as granted (user returns from
         // System Settings), bring the onboarding window back to front so "Get Started"
         // is immediately clickable without needing to click once to focus first.
-        permissionManager!.$accessibilityGranted
+        permissionManager.$accessibilityGranted
             .filter { $0 }
             .first()
             .receive(on: DispatchQueue.main)

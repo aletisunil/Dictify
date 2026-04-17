@@ -3,19 +3,28 @@ import Foundation
 @MainActor
 final class DictionaryStore: ObservableObject {
     @Published private(set) var entries: [DictionaryEntry] = []
+    @Published private(set) var lastSaveError: Error?
     private let fileURL = Constants.Storage.dictionaryFileURL
 
     init() {
         load()
     }
 
+    /// Whisper prompt, truncated to a rough token budget. Entries are ordered
+    /// by recency (newest first) so the most-used terms survive truncation.
     var promptString: String {
-        entries.prefix(50).map { entry in
+        promptString(maxTokens: Constants.API.whisperPromptMaxTokens)
+    }
+
+    func promptString(maxTokens: Int) -> String {
+        let sorted = entries.sorted { $0.addedAt > $1.addedAt }
+        let formatted: [String] = sorted.map { entry in
             if let hint = entry.phoneticHint {
                 return "\(entry.term) (\(hint))"
             }
             return entry.term
-        }.joined(separator: ", ")
+        }
+        return TokenBudget.fit(formatted, joiner: ", ", maxTokens: maxTokens)
     }
 
     func add(_ entry: DictionaryEntry) {
@@ -50,17 +59,33 @@ final class DictionaryStore: ObservableObject {
             decoder.dateDecodingStrategy = .iso8601
             let file = try decoder.decode(DictionaryFile.self, from: data)
             entries = file.terms
-        } catch {}
+        } catch {
+            Log.storage.error("Failed to load dictionary.json: \(error.localizedDescription, privacy: .public)")
+            StorageQuarantine.quarantine(fileURL, reason: "decode_failed")
+            entries = []
+        }
     }
 
     private func save() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .prettyPrinted
+        let file = DictionaryFile(terms: entries)
+
         do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = .prettyPrinted
-            let file = DictionaryFile(terms: entries)
             let data = try encoder.encode(file)
             try data.write(to: fileURL, options: .atomic)
-        } catch {}
+            lastSaveError = nil
+        } catch {
+            Log.storage.error("Failed to save dictionary.json (attempt 1): \(error.localizedDescription, privacy: .public)")
+            do {
+                let data = try encoder.encode(file)
+                try data.write(to: fileURL, options: .atomic)
+                lastSaveError = nil
+            } catch {
+                Log.storage.error("Failed to save dictionary.json (retry): \(error.localizedDescription, privacy: .public)")
+                lastSaveError = error
+            }
+        }
     }
 }

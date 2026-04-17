@@ -4,7 +4,6 @@ struct APISettingsView: View {
     @EnvironmentObject var appState: AppState
     let showMissingGroqAPIKeyWarning: Bool
     @State private var apiKey = ""
-    @State private var showKey = false
     @State private var testResult: TestResult?
     @State private var isTesting = false
     @State private var didSaveAPIKey = false
@@ -24,20 +23,8 @@ struct APISettingsView: View {
                         .foregroundStyle(.orange)
                 }
 
-                HStack {
-                    if showKey {
-                        TextField("Enter your Groq API key", text: $apiKey)
-                            .textFieldStyle(.roundedBorder)
-                    } else {
-                        SecureField("Enter your Groq API key", text: $apiKey)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    Button(action: { showKey.toggle() }) {
-                        Image(systemName: showKey ? "eye.slash" : "eye")
-                    }
-                    .buttonStyle(.borderless)
-                }
+                SecureField("Enter your Groq API key", text: $apiKey)
+                    .textFieldStyle(.roundedBorder)
 
                 HStack {
                     Button("Save Key") {
@@ -134,6 +121,13 @@ struct APISettingsView: View {
                 apiKey = key
                 didSaveAPIKey = !key.isEmpty
             }
+        }
+        .onDisappear {
+            // Don't leave the plaintext key sitting in view state memory when
+            // the user closes Settings. The Keychain remains the source of truth.
+            apiKey = ""
+            testResult = nil
+            saveError = nil
         }
     }
 

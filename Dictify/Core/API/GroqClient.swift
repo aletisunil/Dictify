@@ -9,11 +9,14 @@ final class GroqClient: @unchecked Sendable {
     init(keychainManager: KeychainManager) {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
+        config.timeoutIntervalForResource = 90
+        config.waitsForConnectivity = true
         self.session = URLSession(configuration: config)
         self.keychainManager = keychainManager
     }
 
+    /// `URLSession.data(for:)` honours `Task.isCancelled`, so wrapping callers
+    /// in a `Task` + calling `task.cancel()` cleanly aborts the request.
     func performRequest(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         guard let apiKey = keychainManager.getAPIKey(), !apiKey.isEmpty else {
             throw APIError.noAPIKey
@@ -25,6 +28,7 @@ final class GroqClient: @unchecked Sendable {
         var lastError: Error = APIError.invalidResponse
 
         for attempt in 0...maxRetries {
+            try Task.checkCancellation()
             do {
                 let (data, response) = try await session.data(for: mutableRequest)
 
@@ -38,8 +42,7 @@ final class GroqClient: @unchecked Sendable {
                 case 401:
                     throw APIError.unauthorized
                 case 429:
-                    let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
-                        .flatMap { TimeInterval($0) }
+                    let retryAfter = Self.parseRetryAfter(httpResponse.value(forHTTPHeaderField: "Retry-After"))
                     if attempt < maxRetries {
                         let delay = retryAfter ?? backoffIntervals[min(attempt, backoffIntervals.count - 1)]
                         try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -56,6 +59,10 @@ final class GroqClient: @unchecked Sendable {
                 default:
                     throw APIError.serverError(statusCode: httpResponse.statusCode)
                 }
+            } catch is CancellationError {
+                throw APIError.cancelled
+            } catch let urlError as URLError where urlError.code == .cancelled {
+                throw APIError.cancelled
             } catch let error as APIError {
                 throw error
             } catch {
@@ -70,5 +77,34 @@ final class GroqClient: @unchecked Sendable {
         }
 
         throw APIError.networkError(lastError)
+    }
+
+    /// Parses the `Retry-After` header. Supports both numeric-seconds form and
+    /// the RFC 7231 HTTP-date form. Result clamped to [0, 60] seconds.
+    static func parseRetryAfter(_ header: String?) -> TimeInterval? {
+        guard let header = header?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !header.isEmpty else { return nil }
+
+        if let seconds = TimeInterval(header) {
+            return max(0, min(60, seconds))
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "GMT")
+        // RFC 7231 IMF-fixdate format
+        let formats = [
+            "EEE, dd MMM yyyy HH:mm:ss zzz",
+            "EEEE, dd-MMM-yy HH:mm:ss zzz",
+            "EEE MMM d HH:mm:ss yyyy"
+        ]
+        for fmt in formats {
+            formatter.dateFormat = fmt
+            if let date = formatter.date(from: header) {
+                let delta = date.timeIntervalSinceNow
+                return max(0, min(60, delta))
+            }
+        }
+        return nil
     }
 }

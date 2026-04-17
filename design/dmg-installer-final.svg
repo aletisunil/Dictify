@@ -1,0 +1,67 @@
+<svg width="700" height="460" viewBox="0 0 700 460" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="700" y2="460" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FBFDFF"/>
+      <stop offset="0.55" stop-color="#EEF4FE"/>
+      <stop offset="1" stop-color="#F4F8FF"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="350" cy="244" r="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3478F6" stop-opacity="0.08"/>
+      <stop offset="0.6" stop-color="#3478F6" stop-opacity="0.02"/>
+      <stop offset="1" stop-color="#3478F6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="arrow" x1="300" y1="244" x2="410" y2="244" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3478F6"/>
+      <stop offset="1" stop-color="#1A5DD8"/>
+    </linearGradient>
+    <filter id="zoneShadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="6" stdDeviation="14" flood-color="#1B365D" flood-opacity="0.05"/>
+    </filter>
+  </defs>
+
+  <!-- Background gradient + soft brand glow -->
+  <rect width="700" height="460" fill="url(#bg)"/>
+  <rect width="700" height="460" fill="url(#glow)"/>
+
+  <!-- Subtle horizontal hairlines for structure -->
+  <path d="M48 142H652" stroke="#E2EBF7" stroke-width="1"/>
+  <path d="M48 372H652" stroke="#E2EBF7" stroke-width="1"/>
+
+  <!-- Title and tagline -->
+  <text x="350" y="78" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+        font-size="34" font-weight="700" fill="#0F1B2D" letter-spacing="-0.5">Install Dictify</text>
+  <text x="350" y="110" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif"
+        font-size="15" font-weight="500" fill="#5A6A7E">Drag Dictify into Applications to start using voice typing anywhere.</text>
+
+  <!-- Left drop zone (Dictify.app sits here, Finder draws icon at {211,244}, icon size 132) -->
+  <g filter="url(#zoneShadow)">
+    <rect x="119" y="152" width="184" height="184" rx="28"
+          fill="#FFFFFF" fill-opacity="0.55"
+          stroke="#CFDDF0" stroke-width="1.5" stroke-dasharray="6 6"/>
+  </g>
+
+  <!-- Right drop zone (Applications alias sits here, Finder draws icon at {523,244}) -->
+  <g filter="url(#zoneShadow)">
+    <rect x="431" y="152" width="184" height="184" rx="28"
+          fill="#FFFFFF" fill-opacity="0.55"
+          stroke="#CFDDF0" stroke-width="1.5" stroke-dasharray="6 6"/>
+  </g>
+
+  <!-- Arrow between drop zones -->
+  <g>
+    <path d="M312 244H392" stroke="url(#arrow)" stroke-width="6" stroke-linecap="round"/>
+    <path d="M378 226L398 244L378 262" stroke="url(#arrow)" stroke-width="6"
+          stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <!-- Trailing dots (subtle motion hint) -->
+    <circle cx="324" cy="244" r="3" fill="#3478F6" opacity="0.55"/>
+    <circle cx="338" cy="244" r="3" fill="#3478F6" opacity="0.4"/>
+    <circle cx="352" cy="244" r="3" fill="#3478F6" opacity="0.25"/>
+  </g>
+
+  <!-- Bottom helper hint (sits below Finder labels, which appear ~y=326) -->
+  <text x="350" y="408" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif"
+        font-size="13" font-weight="500" fill="#64748B">Then launch Dictify from Applications and grant Microphone &amp; Accessibility access.</text>
+</svg>

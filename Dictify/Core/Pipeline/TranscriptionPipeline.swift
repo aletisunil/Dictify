@@ -1,4 +1,34 @@
+import AppKit
 import Foundation
+import os
+
+/// Main-actor-isolated Timer wrapper. Owning the `Timer` here (rather than on
+/// the pipeline actor via `nonisolated(unsafe)`) guarantees all Timer
+/// interaction stays on the main run loop, which Timer requires.
+@MainActor
+final class ElapsedTimer {
+    private var timer: Timer?
+
+    func start(onTick: @escaping @MainActor @Sendable () -> Void) {
+        stop()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            MainActor.assumeIsolated {
+                onTick()
+            }
+        }
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    deinit {
+        MainActor.assumeIsolated {
+            stop()
+        }
+    }
+}
 
 actor TranscriptionPipeline {
     private let appState: AppState
@@ -13,9 +43,10 @@ actor TranscriptionPipeline {
     private let historyStore: HistoryStore
     private let statsStore: StatsStore
     private let settings: DictifySettings
+    private let elapsedTimer: ElapsedTimer
 
-    private nonisolated(unsafe) var elapsedTimer: Timer?
     private var maxRecordingTask: Task<Void, Never>?
+    private var processingTask: Task<Void, Never>?
 
     init(appState: AppState,
          keychainManager: KeychainManager,
@@ -35,6 +66,7 @@ actor TranscriptionPipeline {
         self.historyStore = historyStore
         self.statsStore = statsStore
         self.settings = appState.settings
+        self.elapsedTimer = MainActor.assumeIsolated { ElapsedTimer() }
     }
 
     func startRecording() async {
@@ -51,19 +83,26 @@ actor TranscriptionPipeline {
         }
 
         do {
-            try audioEngine.startCapture { [weak appState] levels in
-                appState?.audioLevels = levels
-            }
+            try audioEngine.startCapture(
+                levelCallback: { [weak appState] levels in
+                    appState?.audioLevels = levels
+                },
+                onInterruption: { [weak self] reason in
+                    guard let self = self else { return }
+                    Task { await self.handleInterruption(reason) }
+                }
+            )
             scheduleMaxDurationStop()
 
             await MainActor.run {
                 appState.pipelineState = .recording
                 appState.playSound("Tink")
-                self.startElapsedTimer()
             }
+            await startElapsedTimer()
         } catch {
             audioEngine.stopCapture()
             cancelMaxDurationStop()
+            Log.pipeline.error("Failed to start capture: \(error.localizedDescription, privacy: .public)")
             await MainActor.run {
                 appState.pipelineState = .error("Microphone unavailable")
                 appState.audioLevels = Array(repeating: 0, count: 15)
@@ -75,8 +114,8 @@ actor TranscriptionPipeline {
 
     func stopRecording() async {
         guard audioEngine.isRecording else {
+            await stopElapsedTimer()
             await MainActor.run {
-                stopElapsedTimer()
                 if case .recording = appState.pipelineState {
                     appState.pipelineState = .idle
                     appState.audioLevels = Array(repeating: 0, count: 15)
@@ -87,10 +126,7 @@ actor TranscriptionPipeline {
         }
 
         cancelMaxDurationStop()
-
-        await MainActor.run {
-            stopElapsedTimer()
-        }
+        await stopElapsedTimer()
 
         let duration = audioEngine.recordingDuration
         let pcmData = audioEngine.stopCapture()
@@ -108,19 +144,48 @@ actor TranscriptionPipeline {
             return
         }
 
+        processingTask?.cancel()
+        processingTask = Task { [weak self] in
+            await self?.processCapturedAudio(pcmData: pcmData, duration: duration)
+        }
+    }
+
+    private func processCapturedAudio(pcmData: Data, duration: TimeInterval) async {
         let wavData = WAVEncoder.encode(pcmData: pcmData)
 
-        // Transcription
         await MainActor.run {
             appState.pipelineState = .transcribing
         }
 
+        let signpostID = Log.pipelineSignpost.makeSignpostID()
+        let state = Log.pipelineSignpost.beginInterval("upload", id: signpostID)
+
         let rawTranscript: String
         do {
+            try Task.checkCancellation()
             let dictPrompt = await MainActor.run { dictionaryStore.promptString }
             rawTranscript = try await whisperService.transcribe(wavData: wavData, dictionaryPrompt: dictPrompt)
+            Log.pipelineSignpost.endInterval("upload", state)
         } catch APIError.emptyTranscription {
-            // No speech detected — silently dismiss instead of showing an error
+            Log.pipelineSignpost.endInterval("upload", state)
+            await MainActor.run {
+                appState.pipelineState = .idle
+                appState.audioLevels = Array(repeating: 0, count: 15)
+                appState.recordingElapsed = 0
+            }
+            return
+        } catch APIError.cancelled {
+            Log.pipelineSignpost.endInterval("upload", state)
+            Log.pipeline.notice("Transcription cancelled by user")
+            await MainActor.run {
+                appState.pipelineState = .idle
+                appState.audioLevels = Array(repeating: 0, count: 15)
+                appState.recordingElapsed = 0
+            }
+            return
+        } catch is CancellationError {
+            Log.pipelineSignpost.endInterval("upload", state)
+            Log.pipeline.notice("Transcription cancelled by user")
             await MainActor.run {
                 appState.pipelineState = .idle
                 appState.audioLevels = Array(repeating: 0, count: 15)
@@ -128,11 +193,11 @@ actor TranscriptionPipeline {
             }
             return
         } catch {
+            Log.pipelineSignpost.endInterval("upload", state)
             await handleError(error)
             return
         }
 
-        // Refinement
         var finalText = rawTranscript
 
         let refinementEnabled = await MainActor.run { settings.refinementEnabled }
@@ -141,23 +206,44 @@ actor TranscriptionPipeline {
                 appState.pipelineState = .refining
             }
 
+            let refineState = Log.pipelineSignpost.beginInterval("refine", id: signpostID)
             do {
+                try Task.checkCancellation()
                 let context = await MainActor.run { snippetStore.snippetContext }
                 finalText = try await llamaService.refine(rawTranscript: rawTranscript, snippetContext: context)
+            } catch APIError.cancelled, is CancellationError {
+                Log.pipelineSignpost.endInterval("refine", refineState)
+                Log.pipeline.notice("Refinement cancelled by user")
+                await MainActor.run {
+                    appState.pipelineState = .idle
+                    appState.audioLevels = Array(repeating: 0, count: 15)
+                    appState.recordingElapsed = 0
+                }
+                return
             } catch {
-                // If refinement fails, use raw transcript
+                Log.pipeline.notice("Refinement failed, using raw transcript: \(error.localizedDescription, privacy: .public)")
                 finalText = rawTranscript
             }
+            Log.pipelineSignpost.endInterval("refine", refineState)
         }
 
-        // Text Insertion
+        if Task.isCancelled {
+            await MainActor.run {
+                appState.pipelineState = .idle
+                appState.audioLevels = Array(repeating: 0, count: 15)
+                appState.recordingElapsed = 0
+            }
+            return
+        }
+
         await MainActor.run {
             appState.pipelineState = .inserting
         }
 
+        let insertState = Log.pipelineSignpost.beginInterval("insert", id: signpostID)
         await insertText(finalText)
+        Log.pipelineSignpost.endInterval("insert", insertState)
 
-        // Save to history
         let record = TranscriptionRecord(rawText: rawTranscript, refinedText: finalText, durationSeconds: duration)
         let transcribedText = finalText
         await MainActor.run {
@@ -165,31 +251,40 @@ actor TranscriptionPipeline {
             statsStore.record(text: transcribedText, durationSeconds: duration)
         }
 
-        // Done
         await MainActor.run {
-            appState.pipelineState = .done
+            appState.pipelineState = .idle
             appState.audioLevels = Array(repeating: 0, count: 15)
             appState.recordingElapsed = 0
             appState.playSound("Glass")
-        }
-
-        try? await Task.sleep(nanoseconds: UInt64(Constants.UI.doneDismissDelay * 1_000_000_000))
-
-        await MainActor.run {
-            if case .done = appState.pipelineState {
-                appState.pipelineState = .idle
-            }
         }
     }
 
     func cancelRecording() async {
         cancelMaxDurationStop()
+        processingTask?.cancel()
+        processingTask = nil
         audioEngine.stopCapture()
+        await stopElapsedTimer()
         await MainActor.run {
-            stopElapsedTimer()
             appState.pipelineState = .idle
             appState.audioLevels = Array(repeating: 0, count: 15)
             appState.recordingElapsed = 0
+        }
+    }
+
+    /// Invoked by AudioEngine when the capture is forcibly terminated
+    /// (device change, system sleep, buffer overflow, converter error).
+    private func handleInterruption(_ reason: AudioEngineInterruption) async {
+        Log.pipeline.notice("Audio capture interrupted: \(String(describing: reason), privacy: .public)")
+        cancelMaxDurationStop()
+        audioEngine.stopCapture()
+        await stopElapsedTimer()
+        let message = reason.userMessage
+        await MainActor.run {
+            appState.pipelineState = .error(message)
+            appState.audioLevels = Array(repeating: 0, count: 15)
+            appState.recordingElapsed = 0
+            appState.playSound("Basso")
         }
     }
 
@@ -207,19 +302,20 @@ actor TranscriptionPipeline {
         maxRecordingTask = nil
     }
 
-    @MainActor
-    private func startElapsedTimer() {
-        elapsedTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak appState, weak audioEngine] _ in
-            Task { @MainActor in
-                appState?.recordingElapsed = audioEngine?.recordingDuration ?? 0
+    private func startElapsedTimer() async {
+        let engine = audioEngine
+        let state = appState
+        await MainActor.run {
+            elapsedTimer.start {
+                state.recordingElapsed = engine.recordingDuration
             }
         }
     }
 
-    @MainActor
-    private func stopElapsedTimer() {
-        elapsedTimer?.invalidate()
-        elapsedTimer = nil
+    private func stopElapsedTimer() async {
+        await MainActor.run {
+            elapsedTimer.stop()
+        }
     }
 
     private func insertText(_ text: String) async {
@@ -228,21 +324,76 @@ actor TranscriptionPipeline {
 
         let insertionResult = await accessibilityInserter.insert(text)
 
-        if !insertionResult.inserted {
-            // Fallback to clipboard paste — works with Electron apps (WhatsApp, Slack, etc.)
+        if insertionResult.inserted {
             await MainActor.run {
-                clipboardPaster.paste(text, diagnostics: insertionResult.diagnostics)
+                AccessibilityInserter.announceInsertionSuccess()
+            }
+            return
+        }
+
+        // Fallback to clipboard paste — works with Electron apps (WhatsApp, Slack, etc.)
+        let paster = clipboardPaster
+        let diagnostics = insertionResult.diagnostics
+        let pasteOutcome: ClipboardPasteOutcome = await MainActor.run {
+            paster.paste(text, diagnostics: diagnostics)
+        }
+
+        switch pasteOutcome {
+        case .success:
+            await MainActor.run {
+                AccessibilityInserter.announceInsertionSuccess()
+            }
+        case .skippedSecureField, .postEventDenied:
+            await MainActor.run {
+                Self.presentInsertionFailureAlert(text: text, outcome: pasteOutcome)
             }
         }
     }
 
+    @MainActor
+    private static func presentInsertionFailureAlert(text: String, outcome: ClipboardPasteOutcome) {
+        let alert = NSAlert()
+        switch outcome {
+        case .skippedSecureField:
+            alert.messageText = "Couldn't insert text"
+            alert.informativeText = "Dictify won't paste into a password or secure field. Your transcription is copied below — paste it manually if needed."
+        case .postEventDenied:
+            alert.messageText = "Couldn't insert text"
+            alert.informativeText = "macOS blocked the paste keystroke. Your transcription is copied below — paste it manually with ⌘V."
+        case .success:
+            return
+        }
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Copy to Clipboard")
+        alert.addButton(withTitle: "Dismiss")
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            let pb = NSPasteboard.general
+            pb.clearContents()
+            pb.setString(text, forType: .string)
+        }
+    }
+
     private func handleError(_ error: Error) async {
+        // Cancellation is benign — don't surface as a user-visible error.
+        if case APIError.cancelled = error {
+            Log.pipeline.notice("Request cancelled — returning to idle")
+            await MainActor.run {
+                appState.pipelineState = .idle
+                appState.audioLevels = Array(repeating: 0, count: 15)
+                appState.recordingElapsed = 0
+            }
+            return
+        }
+
         let message: String
         if let apiError = error as? APIError {
             message = apiError.localizedDescription
         } else {
             message = error.localizedDescription
         }
+        Log.pipeline.error("Pipeline error: \(message, privacy: .public)")
 
         await MainActor.run {
             appState.pipelineState = .error(message)

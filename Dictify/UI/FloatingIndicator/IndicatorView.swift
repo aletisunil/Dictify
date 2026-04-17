@@ -4,8 +4,6 @@ struct IndicatorView: View {
     @ObservedObject var appState: AppState
     @AppStorage("showElapsedTime") private var showElapsedTime: Bool = true
 
-    @State private var isVisible = false
-
     var body: some View {
         Group {
             if appState.pipelineState != .idle {
@@ -14,12 +12,8 @@ struct IndicatorView: View {
                     .background(indicatorShape.fill(.ultraThinMaterial))
                     .clipShape(indicatorShape)
                     .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .onAppear { withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { isVisible = true } }
-                    .onDisappear { isVisible = false }
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: appState.pipelineState)
     }
 
     @ViewBuilder
@@ -58,10 +52,6 @@ struct IndicatorView: View {
             ProgressView()
                 .scaleEffect(0.5)
                 .frame(width: 12, height: 12)
-        case .done:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.system(size: 12))
         case .error:
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
@@ -76,7 +66,7 @@ struct IndicatorView: View {
         switch appState.pipelineState {
         case .recording:
             EmptyView()
-        case .transcribing, .refining, .inserting, .done:
+        case .transcribing, .refining, .inserting:
             EmptyView()
         case .error(let message):
             Text(message)

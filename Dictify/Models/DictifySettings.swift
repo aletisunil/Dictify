@@ -8,4 +8,5 @@ final class DictifySettings: ObservableObject {
     @AppStorage("launchAtLogin") var launchAtLogin: Bool = false
     @AppStorage("soundEffectsEnabled") var soundEffectsEnabled: Bool = true
     @AppStorage("showElapsedTime") var showElapsedTime: Bool = true
+    @AppStorage("tapHoldThreshold") var tapHoldThreshold: Double = 0.2
 }

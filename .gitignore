@@ -15,6 +15,7 @@ xcuserdata/
 ## Build output
 build/
 DerivedData/
+dist/
 
 ## Obj-C/Swift specific
 *.hmap

@@ -3,16 +3,24 @@ import Foundation
 @MainActor
 final class SnippetStore: ObservableObject {
     @Published private(set) var snippets: [Snippet] = []
+    @Published private(set) var lastSaveError: Error?
     private let fileURL = Constants.Storage.snippetsFileURL
 
     init() {
         load()
     }
 
+    /// Snippet context for the Llama refinement prompt. Truncated to a rough
+    /// token budget (recency-sorted: most recently created survives).
     var snippetContext: String {
+        snippetContext(maxTokens: Constants.API.snippetContextMaxTokens)
+    }
+
+    func snippetContext(maxTokens: Int) -> String {
         guard !snippets.isEmpty else { return "No snippets defined." }
-        return snippets.map { "When the user says \"\($0.cue)\", replace it with: \($0.expandedBody())" }
-            .joined(separator: "\n")
+        let sorted = snippets.sorted { $0.createdAt > $1.createdAt }
+        let formatted = sorted.map { "When the user says \"\($0.cue)\", replace it with: \($0.expandedBody())" }
+        return TokenBudget.fit(formatted, joiner: "\n", maxTokens: maxTokens)
     }
 
     func add(_ snippet: Snippet) {
@@ -47,17 +55,33 @@ final class SnippetStore: ObservableObject {
             decoder.dateDecodingStrategy = .iso8601
             let file = try decoder.decode(SnippetFile.self, from: data)
             snippets = file.snippets
-        } catch {}
+        } catch {
+            Log.storage.error("Failed to load snippets.json: \(error.localizedDescription, privacy: .public)")
+            StorageQuarantine.quarantine(fileURL, reason: "decode_failed")
+            snippets = []
+        }
     }
 
     private func save() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .prettyPrinted
+        let file = SnippetFile(snippets: snippets)
+
         do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = .prettyPrinted
-            let file = SnippetFile(snippets: snippets)
             let data = try encoder.encode(file)
             try data.write(to: fileURL, options: .atomic)
-        } catch {}
+            lastSaveError = nil
+        } catch {
+            Log.storage.error("Failed to save snippets.json (attempt 1): \(error.localizedDescription, privacy: .public)")
+            do {
+                let data = try encoder.encode(file)
+                try data.write(to: fileURL, options: .atomic)
+                lastSaveError = nil
+            } catch {
+                Log.storage.error("Failed to save snippets.json (retry): \(error.localizedDescription, privacy: .public)")
+                lastSaveError = error
+            }
+        }
     }
 }

@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 final class HistoryStore: ObservableObject {
     @Published private(set) var records: [TranscriptionRecord] = []
+    @Published private(set) var lastSaveError: Error?
     private let fileURL = Constants.Storage.historyFileURL
     private let maxItems = Constants.UI.maxHistoryItems
 
@@ -32,16 +33,32 @@ final class HistoryStore: ObservableObject {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             records = try decoder.decode([TranscriptionRecord].self, from: data)
-        } catch {}
+        } catch {
+            Log.storage.error("Failed to load history.json: \(error.localizedDescription, privacy: .public)")
+            StorageQuarantine.quarantine(fileURL, reason: "decode_failed")
+            records = []
+        }
     }
 
     private func save() {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .prettyPrinted
+
         do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = .prettyPrinted
             let data = try encoder.encode(records)
             try data.write(to: fileURL, options: .atomic)
-        } catch {}
+            lastSaveError = nil
+        } catch {
+            Log.storage.error("Failed to save history.json (attempt 1): \(error.localizedDescription, privacy: .public)")
+            do {
+                let data = try encoder.encode(records)
+                try data.write(to: fileURL, options: .atomic)
+                lastSaveError = nil
+            } catch {
+                Log.storage.error("Failed to save history.json (retry): \(error.localizedDescription, privacy: .public)")
+                lastSaveError = error
+            }
+        }
     }
 }
