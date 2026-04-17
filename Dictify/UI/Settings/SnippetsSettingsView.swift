@@ -19,6 +19,20 @@ struct SnippetsSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let error = store?.lastSaveError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                    Text("Could not save snippets: \(error.localizedDescription)")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+                .padding(.vertical, 6)
+                .background(Color.red.opacity(0.1))
+            }
+
             HStack {
                 TextField("Search snippets...", text: $searchText)
                     .textFieldStyle(.roundedBorder)
@@ -171,6 +185,6 @@ struct SnippetEditor: View {
             .padding(.horizontal)
         }
         .padding()
-        .frame(width: 450, height: 400)
+        .frame(minWidth: 420, idealWidth: 480, minHeight: 380, idealHeight: 440)
     }
 }

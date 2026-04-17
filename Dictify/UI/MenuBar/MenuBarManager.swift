@@ -42,9 +42,6 @@ final class MenuBarManager {
             onQuitClicked: onQuitClicked
         )
         let hostingController = NSHostingController(rootView: popoverView)
-        hostingController.view.wantsLayer = true
-        hostingController.view.layer?.backgroundColor = NSColor.black.cgColor
-        popover.appearance = NSAppearance(named: .darkAqua)
         popover.contentViewController = hostingController
         popover.behavior = .transient
         popover.contentSize = NSSize(width: 320, height: 400)
@@ -97,7 +94,7 @@ final class MenuBarManager {
             let startX = rect.midX - (totalWidth / 2)
             let heights = [0.34, 0.58, 0.86, 0.68, 1.0, 0.86, 0.58]
 
-            NSColor.black.setFill()
+            NSColor.labelColor.setFill()
 
             for (index, heightRatio) in heights.enumerated() {
                 let height = rect.height * heightRatio

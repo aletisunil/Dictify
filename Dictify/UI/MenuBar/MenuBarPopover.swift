@@ -93,10 +93,7 @@ struct MenuBarPopover: View {
             }
             .padding()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(width: 320, height: 400)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
     }
 
     @ViewBuilder
@@ -104,44 +101,35 @@ struct MenuBarPopover: View {
         switch appState.pipelineState {
         case .idle:
             if appState.hasAPIKeyConfigured {
-                Text("Ready")
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(.green.opacity(0.2))
-                    .foregroundStyle(.green)
-                    .clipShape(Capsule())
+                StatusBadge(label: "Ready", tint: .green)
             } else {
                 Button(action: onConfigureAPIClicked) {
-                    Text("Configure Groq API")
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(.red.opacity(0.2))
-                        .foregroundStyle(.red)
-                        .clipShape(Capsule())
+                    StatusBadge(label: "Configure Groq API", tint: .red)
                 }
                 .buttonStyle(.plain)
             }
         case .recording:
-            Text("Recording")
-                .font(.caption)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(.red.opacity(0.2))
-                .foregroundStyle(.red)
-                .clipShape(Capsule())
+            StatusBadge(label: "Recording", tint: .red)
         case .transcribing, .refining, .inserting:
-            Text("Processing")
-                .font(.caption)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(.orange.opacity(0.2))
-                .foregroundStyle(.orange)
-                .clipShape(Capsule())
+            StatusBadge(label: "Processing", tint: .orange)
         default:
             EmptyView()
         }
+    }
+}
+
+struct StatusBadge: View {
+    let label: String
+    let tint: Color
+
+    var body: some View {
+        Text(label)
+            .font(.caption)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(tint.opacity(0.18))
+            .foregroundStyle(tint)
+            .clipShape(Capsule())
     }
 }
 

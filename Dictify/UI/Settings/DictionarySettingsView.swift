@@ -16,6 +16,20 @@ struct DictionarySettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let error = store?.lastSaveError {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                    Text("Could not save dictionary: \(error.localizedDescription)")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+                .padding(.vertical, 6)
+                .background(Color.red.opacity(0.1))
+            }
+
             // Toolbar
             HStack {
                 TextField("Search terms...", text: $searchText)
@@ -159,6 +173,6 @@ struct DictionaryEntryEditor: View {
             .padding(.horizontal)
         }
         .padding()
-        .frame(width: 400, height: 300)
+        .frame(minWidth: 360, idealWidth: 420, minHeight: 280, idealHeight: 320)
     }
 }

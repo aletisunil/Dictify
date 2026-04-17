@@ -47,6 +47,18 @@ struct GeneralSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+
+                HStack {
+                    Text("Tap/Hold Threshold")
+                    Spacer()
+                    Text(String(format: "%.2fs", settings.tapHoldThreshold))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: $settings.tapHoldThreshold, in: 0.1...0.5, step: 0.05)
+                Text("Hold longer than this to dictate; shorter taps are cancelled.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Transcription") {
@@ -80,19 +92,19 @@ struct GeneralSettingsView: View {
                     permissionBadge(granted: permissionManager.accessibilityGranted)
                 }
 
-                HStack {
+                HStack(spacing: 8) {
                     Button("Open Microphone Settings") {
                         permissionManager.openMicrophoneSettings()
                     }
                     Button("Open Accessibility Settings") {
                         permissionManager.openAccessibilitySettings()
                     }
+                    Spacer()
                 }
-                .font(.caption)
+                .controlSize(.small)
             }
         }
         .formStyle(.grouped)
-        .padding()
         .onAppear {
             permissionManager.checkAll()
             syncLaunchAtLoginState()
@@ -124,14 +136,7 @@ struct GeneralSettingsView: View {
     }
 
     private func shortcutWarning(for key: String) -> String? {
-        switch key {
-        case "command":
-            return "Command is used by most system and app shortcuts — may cause conflicts"
-        case "shift":
-            return "Shift is used for capitalization — may interfere with typing"
-        default:
-            return nil
-        }
+        KeyMonitor.detectConflict(for: key)
     }
 
     private func startRecordingShortcut() {
