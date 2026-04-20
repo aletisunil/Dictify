@@ -11,6 +11,6 @@
     <key>stripSwiftSymbols</key>
     <true/>
     <key>teamID</key>
-    <string>5432YAY2UX</string>
+    <string>__APPLE_TEAM_ID__</string>
 </dict>
 </plist>

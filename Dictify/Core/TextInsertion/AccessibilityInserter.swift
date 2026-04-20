@@ -242,7 +242,7 @@ final class AccessibilityInserter: @unchecked Sendable {
         }
 
         if CFGetTypeID(value) == CFBooleanGetTypeID() {
-            return (CFBooleanGetValue(value as! CFBoolean), result)
+            return (CFBooleanGetValue((value as! CFBoolean)), result)
         }
 
         return (value as? Bool, result)

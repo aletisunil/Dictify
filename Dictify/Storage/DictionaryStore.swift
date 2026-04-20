@@ -51,6 +51,8 @@ final class DictionaryStore: ObservableObject {
 
     private func load() {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            entries = Self.defaultEntries()
+            save()
             return
         }
         do {
@@ -64,6 +66,17 @@ final class DictionaryStore: ObservableObject {
             StorageQuarantine.quarantine(fileURL, reason: "decode_failed")
             entries = []
         }
+    }
+
+    private static func defaultEntries() -> [DictionaryEntry] {
+        [
+            DictionaryEntry(term: "John Doe", category: "name"),
+            DictionaryEntry(term: "Dictify", category: "brand"),
+            DictionaryEntry(term: "macOS", category: "brand"),
+            DictionaryEntry(term: "GitHub", category: "brand"),
+            DictionaryEntry(term: "Kubernetes", category: "tech"),
+            DictionaryEntry(term: "Groq", category: "brand")
+        ]
     }
 
     private func save() {

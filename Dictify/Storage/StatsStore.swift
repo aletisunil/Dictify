@@ -1,23 +1,32 @@
 import Foundation
 
+/// Session stats live in-memory only. Lifetime totals are derived from
+/// `HistoryStore` so the two can never drift — clearing history also zeros
+/// the totals, and a fresh install shows zero even if stale UserDefaults
+/// survived a previous install.
 @MainActor
 final class StatsStore: ObservableObject {
     @Published private(set) var sessionWords: Int = 0
     @Published private(set) var sessionSpeakingSeconds: Double = 0
-    @Published private(set) var totalWords: Int
-    @Published private(set) var totalSpeakingSeconds: Double
 
-    private let userDefaults: UserDefaults
+    private weak var historyStore: HistoryStore?
 
-    private enum DefaultsKey {
-        static let totalWords = "stats.totalWords"
-        static let totalSpeakingSeconds = "stats.totalSpeakingSeconds"
+    init(historyStore: HistoryStore? = nil) {
+        self.historyStore = historyStore
     }
 
-    init(userDefaults: UserDefaults = .standard) {
-        self.userDefaults = userDefaults
-        self.totalWords = userDefaults.integer(forKey: DefaultsKey.totalWords)
-        self.totalSpeakingSeconds = userDefaults.double(forKey: DefaultsKey.totalSpeakingSeconds)
+    func bind(historyStore: HistoryStore) {
+        self.historyStore = historyStore
+    }
+
+    var totalWords: Int {
+        guard let records = historyStore?.records else { return 0 }
+        return records.reduce(0) { $0 + Self.wordCount(in: $1.refinedText) }
+    }
+
+    var totalSpeakingSeconds: Double {
+        guard let records = historyStore?.records else { return 0 }
+        return records.reduce(0) { $0 + $1.durationSeconds }
     }
 
     var sessionWPM: Double? {
@@ -30,14 +39,8 @@ final class StatsStore: ObservableObject {
 
     func record(text: String, durationSeconds: Double) {
         let wordCount = Self.wordCount(in: text)
-
         sessionWords += wordCount
         sessionSpeakingSeconds += durationSeconds
-        totalWords += wordCount
-        totalSpeakingSeconds += durationSeconds
-
-        userDefaults.set(totalWords, forKey: DefaultsKey.totalWords)
-        userDefaults.set(totalSpeakingSeconds, forKey: DefaultsKey.totalSpeakingSeconds)
     }
 
     private func wpm(words: Int, speakingSeconds: Double) -> Double? {

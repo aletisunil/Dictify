@@ -1,4 +1,5 @@
 import Foundation
+import LocalAuthentication
 import Security
 
 final class KeychainManager: @unchecked Sendable {
@@ -14,9 +15,10 @@ final class KeychainManager: @unchecked Sendable {
         let normalizedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedKey.isEmpty, let data = normalizedKey.data(using: .utf8) else { return false }
 
-        let query = keychainQuery(service: service)
+        let query = noPromptKeychainQuery(service: service)
         let attributes: [String: Any] = [
-            kSecValueData as String: data
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked
         ]
 
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
@@ -31,7 +33,7 @@ final class KeychainManager: @unchecked Sendable {
 
         var addQuery = keychainQuery(service: service)
         addQuery[kSecValueData as String] = data
-        addQuery[kSecAttrSynchronizable as String] = false
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
 
         let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
         if addStatus != errSecSuccess {
@@ -44,21 +46,17 @@ final class KeychainManager: @unchecked Sendable {
     }
 
     func getAPIKey() -> String? {
-        getAPIKey(service: service, useDataProtectionKeychain: false)
-            ?? getAPIKey(service: service, useDataProtectionKeychain: true)
+        getAPIKey(service: service)
     }
 
     @discardableResult
     func delete() -> Bool {
-        let standardStatus = SecItemDelete(keychainQuery(service: service) as CFDictionary)
-        let dataProtectionStatus = SecItemDelete(dataProtectionKeychainQuery(service: service) as CFDictionary)
-        let didDelete = [standardStatus, dataProtectionStatus].allSatisfy {
-            $0 == errSecSuccess || $0 == errSecItemNotFound || $0 == errSecMissingEntitlement
-        }
+        let status = SecItemDelete(noPromptKeychainQuery(service: service) as CFDictionary)
+        let didDelete = status == errSecSuccess || status == errSecItemNotFound
         if didDelete {
             setHasStoredAPIKeyHint(false)
         } else {
-            Log.storage.error("Keychain delete failed: standard=\(standardStatus), dataProtection=\(dataProtectionStatus)")
+            Log.storage.error("Keychain delete failed: OSStatus \(status)")
         }
         return didDelete
     }
@@ -75,10 +73,8 @@ final class KeychainManager: @unchecked Sendable {
         return hasKey
     }
 
-    private func getAPIKey(service: String, useDataProtectionKeychain: Bool) -> String? {
-        var query = useDataProtectionKeychain
-            ? dataProtectionKeychainQuery(service: service)
-            : keychainQuery(service: service)
+    private func getAPIKey(service: String) -> String? {
+        var query = noPromptKeychainQuery(service: service)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -86,8 +82,8 @@ final class KeychainManager: @unchecked Sendable {
         let status = SecItemCopyMatching(query as CFDictionary, &result)
 
         guard status == errSecSuccess, let data = result as? Data else {
-            if status != errSecItemNotFound && status != errSecMissingEntitlement {
-                Log.storage.error("Keychain read failed: dataProtection=\(useDataProtectionKeychain), OSStatus \(status)")
+            if status != errSecItemNotFound {
+                Log.storage.error("Keychain read failed: OSStatus \(status)")
             }
             return nil
         }
@@ -96,18 +92,20 @@ final class KeychainManager: @unchecked Sendable {
         return key?.isEmpty == false ? key : nil
     }
 
-    private func dataProtectionKeychainQuery(service: String) -> [String: Any] {
-        var query = keychainQuery(service: service)
-        query[kSecUseDataProtectionKeychain as String] = true
-        return query
-    }
-
     private func keychainQuery(service: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
+    }
+
+    private func noPromptKeychainQuery(service: String) -> [String: Any] {
+        var query = keychainQuery(service: service)
+        let context = LAContext()
+        context.interactionNotAllowed = true
+        query[kSecUseAuthenticationContext as String] = context
+        return query
     }
 
     private func setHasStoredAPIKeyHint(_ hasKey: Bool) {

@@ -47,6 +47,8 @@ final class SnippetStore: ObservableObject {
 
     private func load() {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            snippets = Self.defaultSnippets()
+            save()
             return
         }
         do {
@@ -60,6 +62,31 @@ final class SnippetStore: ObservableObject {
             StorageQuarantine.quarantine(fileURL, reason: "decode_failed")
             snippets = []
         }
+    }
+
+    private static func defaultSnippets() -> [Snippet] {
+        [
+            Snippet(
+                cue: "signoff",
+                body: "Thanks,\nJohn Doe",
+                category: "email"
+            ),
+            Snippet(
+                cue: "myemail",
+                body: "john.doe@example.com",
+                category: "contact"
+            ),
+            Snippet(
+                cue: "todaysdate",
+                body: "{{date}}",
+                category: "general"
+            ),
+            Snippet(
+                cue: "pasteclip",
+                body: "{{clipboard}}",
+                category: "general"
+            )
+        ]
     }
 
     private func save() {

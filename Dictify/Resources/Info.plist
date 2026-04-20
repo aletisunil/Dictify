@@ -20,8 +20,6 @@
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
-    <key>LSUIElement</key>
-    <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>Dictify needs microphone access to transcribe your voice.</string>
     <key>NSAccessibilityUsageDescription</key>

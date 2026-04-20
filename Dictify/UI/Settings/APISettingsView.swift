@@ -3,11 +3,16 @@ import SwiftUI
 struct APISettingsView: View {
     @EnvironmentObject var appState: AppState
     let showMissingGroqAPIKeyWarning: Bool
+    @AppStorage("refinementSpeedMode") private var refinementSpeedMode: String = "quality"
     @State private var apiKey = ""
     @State private var testResult: TestResult?
     @State private var isTesting = false
     @State private var didSaveAPIKey = false
     @State private var saveError: String?
+
+    private var currentLlamaModel: String {
+        refinementSpeedMode == "fast" ? Constants.API.llamaModelFast : Constants.API.llamaModelQuality
+    }
 
     enum TestResult {
         case success
@@ -99,7 +104,7 @@ struct APISettingsView: View {
                 }
 
                 LabeledContent("Refinement") {
-                    Text(Constants.API.llamaModel)
+                    Text(currentLlamaModel)
                         .font(.system(.body, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -159,6 +164,7 @@ struct APISettingsView: View {
             }
         }
 
+        let modelForTest = currentLlamaModel
         Task {
             do {
                 let client = GroqClient(keychainManager: km)
@@ -170,7 +176,7 @@ struct APISettingsView: View {
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
                 let body: [String: Any] = [
-                    "model": Constants.API.llamaModel,
+                    "model": modelForTest,
                     "messages": [["role": "user", "content": "Hi"]],
                     "max_tokens": 5
                 ]

@@ -153,6 +153,12 @@ actor TranscriptionPipeline {
     private func processCapturedAudio(pcmData: Data, duration: TimeInterval) async {
         let wavData = WAVEncoder.encode(pcmData: pcmData)
 
+        // Start the 100ms focus-handoff wait NOW, concurrent with upload +
+        // refine. By the time we're ready to insert, it's already elapsed.
+        let focusHandoffTask = Task {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+
         await MainActor.run {
             appState.pipelineState = .transcribing
         }
@@ -201,7 +207,10 @@ actor TranscriptionPipeline {
         var finalText = rawTranscript
 
         let refinementEnabled = await MainActor.run { settings.refinementEnabled }
-        if refinementEnabled {
+        // Skip refinement entirely for short clean utterances — cuts ~200-800ms
+        // off quick commands like "yes", "next slide", "ok sounds good".
+        let skipRefinement = Self.shouldSkipRefinement(rawTranscript: rawTranscript)
+        if refinementEnabled && !skipRefinement {
             await MainActor.run {
                 appState.pipelineState = .refining
             }
@@ -210,7 +219,13 @@ actor TranscriptionPipeline {
             do {
                 try Task.checkCancellation()
                 let context = await MainActor.run { snippetStore.snippetContext }
-                finalText = try await llamaService.refine(rawTranscript: rawTranscript, snippetContext: context)
+                let speedMode = await MainActor.run { settings.refinementSpeedMode }
+                let model = Self.resolveLlamaModel(from: speedMode)
+                finalText = try await llamaService.refine(
+                    rawTranscript: rawTranscript,
+                    snippetContext: context,
+                    model: model
+                )
             } catch APIError.cancelled, is CancellationError {
                 Log.pipelineSignpost.endInterval("refine", refineState)
                 Log.pipeline.notice("Refinement cancelled by user")
@@ -241,6 +256,9 @@ actor TranscriptionPipeline {
         }
 
         let insertState = Log.pipelineSignpost.beginInterval("insert", id: signpostID)
+        // Wait for the 100ms focus-handoff window we kicked off at the start of
+        // processing; by now it has almost certainly already elapsed.
+        _ = await focusHandoffTask.value
         await insertText(finalText)
         Log.pipelineSignpost.endInterval("insert", insertState)
 
@@ -319,8 +337,9 @@ actor TranscriptionPipeline {
     }
 
     private func insertText(_ text: String) async {
-        // Small delay to ensure the target app has regained focus after fn key release
-        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        // Focus-handoff wait is now overlapped with upload + refine in
+        // `processCapturedAudio`, so by the time we reach here the target app
+        // has regained focus. No fresh sleep needed.
 
         let insertionResult = await accessibilityInserter.insert(text)
 
@@ -373,6 +392,35 @@ actor TranscriptionPipeline {
             pb.clearContents()
             pb.setString(text, forType: .string)
         }
+    }
+
+    /// Maps the user-facing speed mode to the Groq model name.
+    private static func resolveLlamaModel(from mode: String) -> String {
+        switch mode {
+        case "fast": return Constants.API.llamaModelFast
+        default: return Constants.API.llamaModelQuality
+        }
+    }
+
+    /// Refinement is only useful when there are fillers, self-corrections, or
+    /// long sentences to punctuate. For tiny commands, Whisper's raw output is
+    /// already fine — skipping saves the entire Llama round-trip.
+    private static func shouldSkipRefinement(rawTranscript: String) -> Bool {
+        let trimmed = rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let wordCount = trimmed.split { $0.isWhitespace }.count
+        guard wordCount <= 6 else { return false }
+
+        let lower = trimmed.lowercased()
+        let fillerMarkers = [" um ", " uh ", " like ", " you know ", "i mean", "kind of", "sort of"]
+        for marker in fillerMarkers where lower.contains(marker) {
+            return false
+        }
+        // No dictation-command words → nothing for Llama to convert.
+        let commands = ["comma", "period", "question mark", "exclamation point", "new line", "new paragraph"]
+        for c in commands where lower.contains(c) {
+            return false
+        }
+        return true
     }
 
     private func handleError(_ error: Error) async {

@@ -14,15 +14,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static private(set) weak var shared: AppDelegate?
 
     let appState = AppState()
-    private var menuBarManager: MenuBarManager?
     private var indicatorWindow: IndicatorWindow?
     private var keyMonitor: KeyMonitor?
     private var pipeline: TranscriptionPipeline?
     private var permissionManager: PermissionManager?
     private var onboardingWindow: NSWindow?
-    private var onboardingWindowLevelBeforeAccessibilityPrompt: NSWindow.Level?
     private var isCompletingOnboarding = false
-    private var settingsWindow: NSWindow?
+    private var mainWindow: NSWindow?
+    private var menuBarManager: MenuBarManager?
     private var cancellables = Set<AnyCancellable>()
 
     override init() {
@@ -31,8 +30,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApplication.shared.setActivationPolicy(.accessory)
         ensureAppSupportDirectory()
+        applyDockVisibility(showInDock: appState.settings.showInDock)
 
         permissionManager = PermissionManager()
         indicatorWindow = IndicatorWindow(appState: appState)
@@ -41,26 +40,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dictionaryStore = DictionaryStore()
         let snippetStore = SnippetStore()
         let historyStore = HistoryStore()
-        let statsStore = StatsStore()
+        let statsStore = StatsStore(historyStore: historyStore)
 
         appState.dictionaryStore = dictionaryStore
         appState.snippetStore = snippetStore
         appState.historyStore = historyStore
         appState.statsStore = statsStore
         appState.keychainManager = keychainManager
-
-        menuBarManager = MenuBarManager(
-            appState: appState,
-            onSettingsClicked: { [weak self] in
-                self?.openSettings()
-            },
-            onConfigureAPIClicked: { [weak self] in
-                self?.openSettings(selectedTab: .api, showMissingGroqAPIKeyWarning: true)
-            },
-            onQuitClicked: {
-                NSApplication.shared.terminate(nil)
-            }
-        )
 
         pipeline = TranscriptionPipeline(
             appState: appState,
@@ -69,6 +55,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             snippetStore: snippetStore,
             historyStore: historyStore,
             statsStore: statsStore
+        )
+
+        menuBarManager = MenuBarManager(
+            onOpen: { [weak self] in
+                guard let self else { return }
+                if self.appState.settings.hasCompletedOnboarding {
+                    self.showMainWindow()
+                } else {
+                    self.showOnboarding()
+                }
+            },
+            onQuit: {
+                NSApp.terminate(nil)
+            }
         )
 
         keyMonitor = KeyMonitor(
@@ -83,23 +83,121 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
 
-        if permissionManager?.allPermissionsGranted != true {
-            showOnboarding()
-        } else {
-            startKeyMonitor()
-        }
+        decideLaunchFlow()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
         permissionManager?.refreshAll()
+        if appState.settings.hasCompletedOnboarding,
+           permissionManager?.allPermissionsGranted == true,
+           appState.permissionReGrantNeeded {
+            appState.permissionReGrantNeeded = false
+            _ = keyMonitor?.start()
+        }
+    }
+
+    @MainActor
+    private func decideLaunchFlow() {
+        let completed = appState.settings.hasCompletedOnboarding
+        let granted = permissionManager?.allPermissionsGranted == true
+
+        if !completed {
+            activateApp()
+            showOnboarding()
+            return
+        }
+
+        if granted {
+            startKeyMonitor()
+            showMainWindow()
+            return
+        }
+
+        // Fully-onboarded user launched without permissions — could be a real
+        // revocation, or just TCC still warming up after reboot. Poll briefly
+        // before surfacing anything intrusive.
+        waitForPermissionsOrSurfaceBanner()
+    }
+
+    @MainActor
+    private func waitForPermissionsOrSurfaceBanner() {
+        guard let permissionManager else { return }
+
+        let deadline = Date().addingTimeInterval(3.0)
+        let checkInterval: TimeInterval = 0.5
+
+        func poll() {
+            permissionManager.checkAll()
+            if permissionManager.allPermissionsGranted {
+                appState.permissionReGrantNeeded = false
+                startKeyMonitor()
+                showMainWindow()
+                return
+            }
+            if Date() >= deadline {
+                appState.permissionReGrantNeeded = true
+                showMainWindow()
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + checkInterval) {
+                MainActor.assumeIsolated { poll() }
+            }
+        }
+
+        poll()
+    }
+
+    @MainActor
+    func applyDockVisibility(showInDock: Bool) {
+        let desired: NSApplication.ActivationPolicy = showInDock ? .regular : .accessory
+        guard NSApp.activationPolicy() != desired else { return }
+        NSApp.setActivationPolicy(desired)
+        if showInDock {
+            NSApp.activate()
+        }
+    }
+
+    @MainActor
+    func replayOnboarding() {
+        appState.settings.hasCompletedOnboarding = false
+        appState.permissionReGrantNeeded = false
+        keyMonitor?.stop()
+        mainWindow?.orderOut(nil)
+        activateApp()
+        showOnboarding()
+    }
+
+    @MainActor
+    private func activateApp() {
+        NSRunningApplication.current.activate()
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        // Closing the main window must not quit — the global hotkey and
+        // pipeline keep running in the background. The dock icon stays present.
+        false
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            Task { @MainActor in
+                if !appState.settings.hasCompletedOnboarding {
+                    showOnboarding()
+                } else {
+                    showMainWindow()
+                }
+            }
+        }
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         keyMonitor?.invalidate()
         permissionManager?.invalidate()
         indicatorWindow?.invalidate()
+        menuBarManager?.invalidate()
     }
-
+    
     private func ensureAppSupportDirectory() {
         let dir = Constants.Storage.appSupportDirectory
         if !FileManager.default.fileExists(atPath: dir.path) {
@@ -111,38 +209,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // MARK: - Main Window
+
     @MainActor
-    func openSettings(selectedTab: SettingsTab? = nil, showMissingGroqAPIKeyWarning: Bool = false) {
-        let settingsView = SettingsView(
-            selectedTab: selectedTab ?? .general,
+    func showMainWindow(selectedTab: MainTab = .home, showMissingGroqAPIKeyWarning: Bool = false) {
+        let rootView = MainWindowView(
+            selection: selectedTab,
             showMissingGroqAPIKeyWarning: showMissingGroqAPIKeyWarning
         )
         .environmentObject(appState)
 
-        if let window = settingsWindow {
-            if selectedTab != nil || showMissingGroqAPIKeyWarning {
-                window.contentView = NSHostingView(rootView: settingsView)
-            }
+        if let window = mainWindow {
+            window.contentView = NSHostingView(rootView: rootView)
             window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
             return
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 550, height: 450),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            contentRect: NSRect(x: 0, y: 0, width: 980, height: 680),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        window.title = "Dictify Settings"
-        window.center()
-        window.contentView = NSHostingView(rootView: settingsView)
-        window.contentMinSize = NSSize(width: 550, height: 450)
+        window.title = "Dictify"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
+        window.contentMinSize = NSSize(width: 900, height: 620)
+        window.center()
+        window.contentView = NSHostingView(rootView: rootView)
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow = window
+        NSApp.activate()
+        mainWindow = window
     }
+
+    /// Legacy alias — some call sites still ask to open "Settings".
+    /// Routes to the main window on the matching tab.
+    @MainActor
+    func openSettings(selectedTab: SettingsTab? = nil, showMissingGroqAPIKeyWarning: Bool = false) {
+        let mainTab: MainTab = {
+            switch selectedTab {
+            case .general: return .general
+            case .api: return .api
+            case .about: return .about
+            case .snippets: return .snippets
+            case .dictionary: return .dictionary
+            case nil: return .general
+            }
+        }()
+        showMainWindow(selectedTab: mainTab, showMissingGroqAPIKeyWarning: showMissingGroqAPIKeyWarning)
+    }
+
+    // MARK: - Onboarding
 
     @MainActor
     func showOnboarding() {
@@ -154,16 +274,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissionManager.checkAll()
         if let window = onboardingWindow {
             window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
             return
         }
 
         let onboardingView = PermissionOnboardingView(
             permissionManager: permissionManager,
             keychainManager: appState.keychainManager,
-            onAccessibilityPermissionRequest: { [weak self] in
-                self?.prepareOnboardingWindowForAccessibilityPrompt()
-            },
             onAPIKeySaved: { [weak self] in
                 self?.appState.refreshAPIKeyStatus()
             },
@@ -173,7 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 620),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 680),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -181,31 +298,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = true
-        window.level = .floating
+        window.level = .normal
         window.hidesOnDeactivate = false
         window.center()
-        // Use a hosting view that accepts the first mouse click even when the window
-        // is not key. Without this, after the user switches to System Settings to grant
-        // Accessibility permission and returns, the first click on "Get Started" only
-        // focuses the window — the button action never fires.
         let hostingView = FirstMouseHostingView(rootView: onboardingView)
         window.contentView = hostingView
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         onboardingWindow = window
-
-        // When the accessibility permission is detected as granted (user returns from
-        // System Settings), bring the onboarding window back to front so "Get Started"
-        // is immediately clickable without needing to click once to focus first.
-        permissionManager.$accessibilityGranted
-            .filter { $0 }
-            .first()
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.restoreOnboardingWindowAfterAccessibilityPrompt()
-            }
-            .store(in: &cancellables)
-
     }
 
     @MainActor
@@ -219,9 +319,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         isCompletingOnboarding = true
+        appState.settings.hasCompletedOnboarding = true
+        appState.permissionReGrantNeeded = false
         let window = onboardingWindow
         onboardingWindow = nil
-        onboardingWindowLevelBeforeAccessibilityPrompt = nil
         window?.orderOut(nil)
 
         // Close after the SwiftUI button action has unwound. Keeping a local strong
@@ -231,41 +332,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window?.close()
             self?.isCompletingOnboarding = false
             self?.startKeyMonitor()
-            self?.menuBarManager?.showPopover()
+            self?.showMainWindow()
         }
-    }
-
-    @MainActor
-    private func prepareOnboardingWindowForAccessibilityPrompt() {
-        guard let window = onboardingWindow else { return }
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    @MainActor
-    private func restoreOnboardingWindowAfterAccessibilityPrompt() {
-        guard !isCompletingOnboarding else { return }
-
-        if let previousLevel = onboardingWindowLevelBeforeAccessibilityPrompt {
-            onboardingWindow?.level = previousLevel
-            onboardingWindowLevelBeforeAccessibilityPrompt = nil
-        }
-
-        onboardingWindow?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     @MainActor
     private func startKeyMonitor() {
         guard permissionManager?.allPermissionsGranted == true else {
-            showOnboarding()
+            if appState.settings.hasCompletedOnboarding {
+                appState.permissionReGrantNeeded = true
+                showMainWindow()
+            } else {
+                showOnboarding()
+            }
             return
         }
 
         guard keyMonitor?.start() == true else {
             keyMonitor?.stop()
             permissionManager?.checkAll()
-            showOnboarding()
+            if appState.settings.hasCompletedOnboarding {
+                appState.permissionReGrantNeeded = true
+                showMainWindow()
+            } else {
+                showOnboarding()
+            }
             return
         }
     }

@@ -35,6 +35,9 @@ final class AppState: ObservableObject {
     @Published var audioLevels: [Float] = Array(repeating: 0, count: 15)
     @Published var recordingElapsed: TimeInterval = 0
     @Published private(set) var hasAPIKeyConfigured = false
+    /// True when the app has been onboarded but a required permission is missing
+    /// (e.g. macOS revoked Accessibility). Drives the in-popover re-grant banner.
+    @Published var permissionReGrantNeeded = false
 
     var dictionaryStore: DictionaryStore? {
         didSet {

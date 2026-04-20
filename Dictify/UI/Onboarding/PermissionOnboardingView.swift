@@ -9,7 +9,8 @@ private enum OnboardingPage: Int, CaseIterable {
     case features = 1
     case permissions = 2
     case apiKey = 3
-    case completion = 4
+    case personalize = 4
+    case completion = 5
 }
 
 // MARK: - Main Onboarding View
@@ -17,7 +18,6 @@ private enum OnboardingPage: Int, CaseIterable {
 struct PermissionOnboardingView: View {
     @ObservedObject var permissionManager: PermissionManager
     var keychainManager: KeychainManager?
-    let onAccessibilityPermissionRequest: () -> Void
     let onAPIKeySaved: () -> Void
     let onComplete: () -> Void
 
@@ -67,6 +67,12 @@ struct PermissionOnboardingView: View {
                             insertion: .move(edge: .trailing),
                             removal: .move(edge: .leading)
                         ))
+                case .personalize:
+                    personalizePage
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing),
+                            removal: .move(edge: .leading)
+                        ))
                 case .completion:
                     completionPage
                         .transition(.asymmetric(
@@ -108,7 +114,7 @@ struct PermissionOnboardingView: View {
             }
             .padding(.bottom, 24)
         }
-        .frame(width: 560, height: 620)
+        .frame(width: 560, height: 680)
         .onAppear {
             permissionManager.checkAll()
             didSaveKey = keychainManager?.hasStoredAPIKeyHint == true
@@ -138,6 +144,13 @@ struct PermissionOnboardingView: View {
         case .apiKey:
             EmptyView()
 
+        case .personalize:
+            Button("Continue") {
+                goForward()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+
         case .completion:
             Button("Get Started") {
                 onComplete()
@@ -150,14 +163,26 @@ struct PermissionOnboardingView: View {
     // MARK: - Page Navigation
 
     private func goForward() {
-        guard let nextPage = OnboardingPage(rawValue: currentPage.rawValue + 1) else { return }
+        guard var nextPage = OnboardingPage(rawValue: currentPage.rawValue + 1) else { return }
+        // If the user is replaying onboarding and already has a Groq key saved,
+        // there's nothing to do on the API-key page — skip straight past it.
+        if nextPage == .apiKey, keychainManager?.hasStoredAPIKeyHint == true {
+            if let afterApiKey = OnboardingPage(rawValue: OnboardingPage.apiKey.rawValue + 1) {
+                nextPage = afterApiKey
+            }
+        }
         withAnimation {
             currentPage = nextPage
         }
     }
 
     private func goBack() {
-        guard let prevPage = OnboardingPage(rawValue: currentPage.rawValue - 1) else { return }
+        guard var prevPage = OnboardingPage(rawValue: currentPage.rawValue - 1) else { return }
+        if prevPage == .apiKey, keychainManager?.hasStoredAPIKeyHint == true {
+            if let beforeApiKey = OnboardingPage(rawValue: OnboardingPage.apiKey.rawValue - 1) {
+                prevPage = beforeApiKey
+            }
+        }
         withAnimation {
             currentPage = prevPage
         }
@@ -238,6 +263,13 @@ struct PermissionOnboardingView: View {
                     title: "Works Everywhere",
                     description: "Text is inserted directly into any app — browsers, editors, messaging apps"
                 )
+
+                FeatureCard(
+                    icon: "wand.and.stars",
+                    color: .pink,
+                    title: "Your Vocabulary",
+                    description: "Teach Dictify rare words and turn short cues into longer text — set up after onboarding"
+                )
             }
             .padding(.horizontal, 30)
 
@@ -298,7 +330,6 @@ struct PermissionOnboardingView: View {
                             return
                         }
 
-                        onAccessibilityPermissionRequest()
                         permissionManager.openAccessibilitySettings()
                         isRequestingAccessibilityPermission = true
                         permissionManager.startPollingAccessibility { _ in
@@ -397,7 +428,7 @@ struct PermissionOnboardingView: View {
                     Button(action: {
                         saveAndContinue()
                     }) {
-                        Text(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Skip for Now" : "Save & Continue")
+                        Text(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? (didSaveKey ? "Continue" : "Skip for Now") : "Save & Continue")
                             .frame(width: 160)
                     }
                     .buttonStyle(.borderedProminent)
@@ -548,7 +579,54 @@ struct PermissionOnboardingView: View {
         }
     }
 
-    // MARK: - Page 5: Completion
+    // MARK: - Page 5: Personalize (Dictionary + Snippets explainer)
+
+    private var personalizePage: some View {
+        VStack(spacing: 16) {
+            Spacer().frame(height: 24)
+
+            Image(systemName: "wand.and.stars")
+                .font(.system(size: 34))
+                .foregroundStyle(.purple)
+
+            Text("Make Dictify Yours")
+                .font(.system(size: 22, weight: .bold))
+
+            Text("Two optional features that make transcription feel tailor-made.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 30)
+
+            VStack(spacing: 12) {
+                PersonalizationCard(
+                    icon: "character.book.closed.fill",
+                    color: .blue,
+                    title: "Dictionary",
+                    tagline: "Teach Dictify rare words so it hears them correctly.",
+                    youSay: "let's use kubernetes",
+                    dictifyWrites: "Kubernetes",
+                    footnote: "Add names, brands, or jargon anytime from Settings → Dictionary."
+                )
+
+                PersonalizationCard(
+                    icon: "text.badge.plus",
+                    color: .pink,
+                    title: "Snippets",
+                    tagline: "Turn short spoken cues into longer text.",
+                    youSay: "signoff",
+                    dictifyWrites: "Thanks,\nSunil",
+                    footnote: "Supports {{date}}, {{time}}, {{clipboard}}. Manage in Settings → Snippets."
+                )
+            }
+            .padding(.horizontal, 30)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Page 6: Completion
 
     private var completionPage: some View {
         VStack(spacing: 16) {
@@ -586,8 +664,8 @@ struct PermissionOnboardingView: View {
                     text: "Release to transcribe and insert text"
                 )
                 UsageTip(
-                    icon: "menubar.arrow.up.rectangle",
-                    text: "Click the menu bar icon to see history and stats"
+                    icon: "character.book.closed.fill",
+                    text: "Add **Dictionary** terms and **Snippets** from Settings"
                 )
             }
             .padding(.horizontal, 50)
@@ -698,6 +776,80 @@ struct PermissionStep: View {
             }
         }
         .padding(16)
+        .background(.primary.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct PersonalizationCard: View {
+    let icon: String
+    let color: Color
+    let title: String
+    let tagline: String
+    let youSay: String
+    let dictifyWrites: String
+    let footnote: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(color.opacity(0.14))
+                        .frame(width: 34, height: 34)
+                    Image(systemName: icon)
+                        .font(.headline)
+                        .foregroundStyle(color)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.headline)
+                    Text(tagline)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "mic.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text("You say:")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text("\u{201C}\(youSay)\u{201D}")
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.caption2)
+                        .foregroundStyle(color)
+                    Text("Dictify writes:")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(dictifyWrites)
+                        .font(.caption)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(color.opacity(0.06))
+            )
+
+            Text(footnote)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(.primary.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }

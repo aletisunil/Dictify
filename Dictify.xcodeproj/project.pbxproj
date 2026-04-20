@@ -29,8 +29,6 @@
 		A10000020 /* SnippetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020 /* SnippetStore.swift */; };
 		A10000021 /* HistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000021 /* HistoryStore.swift */; };
 		A10000022 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000022 /* KeychainManager.swift */; };
-		A10000023 /* MenuBarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000023 /* MenuBarManager.swift */; };
-		A10000024 /* MenuBarPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000024 /* MenuBarPopover.swift */; };
 		A10000025 /* IndicatorWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000025 /* IndicatorWindow.swift */; };
 		A10000026 /* IndicatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000026 /* IndicatorView.swift */; };
 		A10000027 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000027 /* WaveformView.swift */; };
@@ -50,6 +48,8 @@
 		A10000042 /* TokenBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000044 /* TokenBudget.swift */; };
 		A10000043 /* StorageQuarantine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000045 /* StorageQuarantine.swift */; };
 		A10000044 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000046 /* PrivacyInfo.xcprivacy */; };
+		A10000050 /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000050 /* MainWindow.swift */; };
+		A10000051 /* MenuBarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000051 /* MenuBarManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -76,8 +76,6 @@
 		B10000020 /* SnippetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetStore.swift; sourceTree = "<group>"; };
 		B10000021 /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStore.swift; sourceTree = "<group>"; };
 		B10000022 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
-		B10000023 /* MenuBarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarManager.swift; sourceTree = "<group>"; };
-		B10000024 /* MenuBarPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopover.swift; sourceTree = "<group>"; };
 		B10000025 /* IndicatorWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndicatorWindow.swift; sourceTree = "<group>"; };
 		B10000026 /* IndicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndicatorView.swift; sourceTree = "<group>"; };
 		B10000027 /* WaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
@@ -99,6 +97,8 @@
 		B10000044 /* TokenBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenBudget.swift; sourceTree = "<group>"; };
 		B10000045 /* StorageQuarantine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageQuarantine.swift; sourceTree = "<group>"; };
 		B10000046 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B10000050 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
+		B10000051 /* MenuBarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -230,6 +230,7 @@
 		D10000012 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				D10000050 /* Main */,
 				D10000013 /* MenuBar */,
 				D10000014 /* FloatingIndicator */,
 				D10000015 /* Settings */,
@@ -241,10 +242,17 @@
 		D10000013 /* MenuBar */ = {
 			isa = PBXGroup;
 			children = (
-				B10000023 /* MenuBarManager.swift */,
-				B10000024 /* MenuBarPopover.swift */,
+				B10000051 /* MenuBarManager.swift */,
 			);
 			path = MenuBar;
+			sourceTree = "<group>";
+		};
+		D10000050 /* Main */ = {
+			isa = PBXGroup;
+			children = (
+				B10000050 /* MainWindow.swift */,
+			);
+			path = Main;
 			sourceTree = "<group>";
 		};
 		D10000014 /* FloatingIndicator */ = {
@@ -408,9 +416,8 @@
 				A10000020 /* SnippetStore.swift in Sources */,
 				A10000021 /* HistoryStore.swift in Sources */,
 				A10000022 /* KeychainManager.swift in Sources */,
-				A10000023 /* MenuBarManager.swift in Sources */,
-				A10000024 /* MenuBarPopover.swift in Sources */,
 				A10000025 /* IndicatorWindow.swift in Sources */,
+				A10000050 /* MainWindow.swift in Sources */,
 				A10000026 /* IndicatorView.swift in Sources */,
 				A10000027 /* WaveformView.swift in Sources */,
 				A10000028 /* SettingsView.swift in Sources */,
@@ -427,6 +434,7 @@
 				A10000041 /* Log.swift in Sources */,
 				A10000042 /* TokenBudget.swift in Sources */,
 				A10000043 /* StorageQuarantine.swift in Sources */,
+				A10000051 /* MenuBarManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

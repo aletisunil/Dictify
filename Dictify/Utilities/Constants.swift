@@ -11,6 +11,8 @@ enum Constants {
         static let modelsEndpoint = "\(baseURL)/models"
         static let whisperModel = "whisper-large-v3-turbo"
         static let llamaModel = "llama-3.3-70b-versatile"
+        static let llamaModelQuality = "llama-3.3-70b-versatile"
+        static let llamaModelFast = "llama-3.1-8b-instant"
         static let whisperPromptMaxTokens = 200
         static let snippetContextMaxTokens = 1500
     }

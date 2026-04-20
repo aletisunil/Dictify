@@ -1,0 +1,157 @@
+# Build + release workflow for Dictify.
+#
+# Every push runs the `build` job (fast unsigned compile check, no secrets
+# needed — safe for PRs from forks). Pushing a tag matching `v*` additionally
+# runs the `release` job, which signs + notarizes a DMG and uploads it to a
+# GitHub Release.
+#
+# Required repo secrets for the release job (Settings → Secrets → Actions):
+#   DEVELOPER_ID_CERT_BASE64    `base64 -i DeveloperID.p12` of the exported .p12
+#   DEVELOPER_ID_CERT_PASSWORD  password set when exporting the .p12
+#   APPLE_ID                    Apple Developer account email
+#   APPLE_ID_APP_PASSWORD       app-specific password from appleid.apple.com
+#   APPLE_TEAM_ID               Apple Developer team ID (e.g. 5432YAY2UX)
+
+name: Build & Release
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build (unsigned)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Compile Release (no signing)
+        run: |
+          xcodebuild \
+            -project Dictify.xcodeproj \
+            -scheme Dictify \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+  # When CFBundleShortVersionString in Info.plist changes on main, push a
+  # matching `vX.Y.Z` tag. That tag push triggers the `release` job below.
+  auto-tag:
+    name: Auto-tag on version bump
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version and tag if new
+        run: |
+          set -euo pipefail
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Dictify/Resources/Info.plist 2>/dev/null \
+            || plutil -extract CFBundleShortVersionString raw Dictify/Resources/Info.plist)
+          if [[ -z "$VERSION" ]]; then
+            echo "Could not read CFBundleShortVersionString" >&2
+            exit 1
+          fi
+          TAG="v$VERSION"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists — no version bump, skipping."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "Pushed $TAG — release workflow will now run for the tag."
+
+  release:
+    name: Sign, notarize, and publish DMG
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Import Developer ID certificate
+        env:
+          CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+
+          printf '%s' "$CERT_BASE64" | base64 -d > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$CERT_PASSWORD" -A \
+            -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+          rm -f "$CERT_PATH"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      - name: Store notarization credentials
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID_APP_PASSWORD: ${{ secrets.APPLE_ID_APP_PASSWORD }}
+        run: |
+          xcrun notarytool store-credentials dictify-notary \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_ID_APP_PASSWORD" \
+            --keychain "$KEYCHAIN_PATH"
+
+      - name: Generate ExportOptions.plist from template
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          sed "s/__APPLE_TEAM_ID__/$APPLE_TEAM_ID/" \
+            ExportOptions.plist.template > ExportOptions.plist
+
+      - name: Build, sign, notarize, and package DMG
+        env:
+          DEVELOPER_ID_APPLICATION: "Developer ID Application: Sunil Aleti (${{ secrets.APPLE_TEAM_ID }})"
+          NOTARY_PROFILE: dictify-notary
+        run: ./scripts/package-dmg.sh
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Dictify.dmg
+            dist/Dictify.dmg.sha256
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+      - name: Clean up keychain
+        if: always()
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true

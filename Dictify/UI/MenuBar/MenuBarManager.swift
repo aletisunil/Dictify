@@ -1,92 +1,55 @@
-import Cocoa
-import SwiftUI
-import Combine
+import AppKit
 
 @MainActor
 final class MenuBarManager {
     private var statusItem: NSStatusItem?
-    private var popover: NSPopover?
-    private let appState: AppState
-    private let onSettingsClicked: @MainActor () -> Void
-    private let onConfigureAPIClicked: @MainActor () -> Void
-    private let onQuitClicked: @MainActor () -> Void
-    private var cancellable: AnyCancellable?
-    private let iconSize = NSSize(width: 16, height: 16)
+    private let onOpen: @MainActor () -> Void
+    private let onQuit: @MainActor () -> Void
+    private let iconSize = NSSize(width: 18, height: 18)
 
-    init(appState: AppState, onSettingsClicked: @escaping @MainActor () -> Void, onConfigureAPIClicked: @escaping @MainActor () -> Void, onQuitClicked: @escaping @MainActor () -> Void) {
-        self.appState = appState
-        self.onSettingsClicked = onSettingsClicked
-        self.onConfigureAPIClicked = onConfigureAPIClicked
-        self.onQuitClicked = onQuitClicked
-        setupStatusItem()
-        setupPopover()
-        observeState()
+    init(onOpen: @escaping @MainActor () -> Void, onQuit: @escaping @MainActor () -> Void) {
+        self.onOpen = onOpen
+        self.onQuit = onQuit
+        setup()
     }
 
-    private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-
-        if let button = statusItem?.button {
-            configureButton(button)
-            button.action = #selector(togglePopover)
-            button.target = self
+    private func setup() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = item.button {
+            button.image = makeIcon()
+            button.image?.isTemplate = true
+            button.imagePosition = .imageOnly
+            button.toolTip = "Dictify"
         }
+        item.menu = buildMenu()
+        statusItem = item
     }
 
-    private func setupPopover() {
-        let popover = NSPopover()
-        let popoverView = MenuBarPopover(
-            appState: appState,
-            onSettingsClicked: onSettingsClicked,
-            onConfigureAPIClicked: onConfigureAPIClicked,
-            onQuitClicked: onQuitClicked
-        )
-        let hostingController = NSHostingController(rootView: popoverView)
-        popover.contentViewController = hostingController
-        popover.behavior = .transient
-        popover.contentSize = NSSize(width: 320, height: 400)
-        self.popover = popover
+    private func buildMenu() -> NSMenu {
+        let menu = NSMenu()
+
+        let openItem = NSMenuItem(title: "Open Dictify", action: #selector(openClicked), keyEquivalent: "")
+        openItem.target = self
+        menu.addItem(openItem)
+
+        menu.addItem(.separator())
+
+        let quitItem = NSMenuItem(title: "Quit Dictify", action: #selector(quitClicked), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        return menu
     }
 
-    func showPopover() {
-        guard let button = statusItem?.button else { return }
-        if popover?.isShown != true {
-            popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        }
+    @objc private func openClicked() {
+        onOpen()
     }
 
-    @objc private func togglePopover() {
-        guard let button = statusItem?.button else { return }
-
-        if let popover = popover, popover.isShown {
-            popover.performClose(nil)
-        } else {
-            popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        }
+    @objc private func quitClicked() {
+        onQuit()
     }
 
-    private func observeState() {
-        cancellable = appState.$pipelineState
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] state in
-                self?.updateIcon(for: state)
-            }
-    }
-
-    private func updateIcon(for state: PipelineState) {
-        if let button = statusItem?.button {
-            configureButton(button, state: state)
-        }
-    }
-
-    private func configureButton(_ button: NSStatusBarButton, state: PipelineState? = nil) {
-        button.image = makeDictifyMenuBarIcon()
-        button.imagePosition = .imageOnly
-        button.imageScaling = .scaleProportionallyDown
-        button.toolTip = tooltip(for: state ?? appState.pipelineState)
-    }
-
-    private func makeDictifyMenuBarIcon() -> NSImage? {
+    private func makeIcon() -> NSImage? {
         let image = NSImage(size: iconSize, flipped: false) { rect in
             let barWidth = rect.width * 0.14
             let spacing = rect.width * 0.07
@@ -101,20 +64,19 @@ final class MenuBarManager {
                 let x = startX + (CGFloat(index) * (barWidth + spacing))
                 let y = rect.midY - (height / 2)
                 let barRect = NSRect(x: x, y: y, width: barWidth, height: height)
-                let radius = barWidth / 2
-                NSBezierPath(roundedRect: barRect, xRadius: radius, yRadius: radius).fill()
+                let path = NSBezierPath(roundedRect: barRect, xRadius: barWidth / 2, yRadius: barWidth / 2)
+                path.fill()
             }
-
             return true
         }
-
         image.isTemplate = true
-        image.accessibilityDescription = "Dictify"
         return image
     }
 
-    private func tooltip(for state: PipelineState) -> String {
-        let status = state.statusLabel
-        return status.isEmpty ? "Dictify" : "Dictify - \(status)"
+    func invalidate() {
+        if let item = statusItem {
+            NSStatusBar.system.removeStatusItem(item)
+        }
+        statusItem = nil
     }
 }

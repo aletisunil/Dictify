@@ -11,6 +11,10 @@
 ## User settings
 xcuserdata/
 *.xcuserstate
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
 
 ## Build output
 build/
@@ -47,6 +51,19 @@ playground.xcworkspace
 # Secrets/env files
 .env
 .env.*
+Secrets.swift
+*.p8
+*.p12
+*.cer
+*.mobileprovision
+*.certSigningRequest
+
+# Signing / notarization logs
+notarization*.log
+packaging*.log
+
+# Signing config — generate locally from ExportOptions.plist.template
+ExportOptions.plist
 
 # CocoaPods
 #
