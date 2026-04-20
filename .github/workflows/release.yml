@@ -60,8 +60,7 @@ jobs:
       - name: Extract version and tag if new
         run: |
           set -euo pipefail
-          VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Dictify/Resources/Info.plist 2>/dev/null \
-            || plutil -extract CFBundleShortVersionString raw Dictify/Resources/Info.plist)
+          VERSION=$(python3 -c "import plistlib; print(plistlib.load(open('Dictify/Resources/Info.plist','rb'))['CFBundleShortVersionString'])")
           if [[ -z "$VERSION" ]]; then
             echo "Could not read CFBundleShortVersionString" >&2
             exit 1
