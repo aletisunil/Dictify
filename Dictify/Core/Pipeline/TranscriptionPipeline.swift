@@ -73,13 +73,21 @@ actor TranscriptionPipeline {
         guard !audioEngine.isRecording else {
             return
         }
-        let canStart = await MainActor.run { appState.pipelineState == .idle }
+        let canStart = await MainActor.run {
+            switch appState.pipelineState {
+            case .idle, .error:
+                // Reset a stale error (e.g. 400 from the previous attempt) so
+                // the next activation isn't blocked.
+                appState.pipelineState = .idle
+                appState.audioLevels = Array(repeating: 0, count: 15)
+                appState.recordingElapsed = 0
+                return true
+            default:
+                return false
+            }
+        }
         guard canStart else {
             return
-        }
-
-        await MainActor.run {
-            appState.recordingElapsed = 0
         }
 
         do {
@@ -170,7 +178,10 @@ actor TranscriptionPipeline {
         do {
             try Task.checkCancellation()
             let dictPrompt = await MainActor.run { dictionaryStore.promptString }
-            rawTranscript = try await whisperService.transcribe(wavData: wavData, dictionaryPrompt: dictPrompt)
+            rawTranscript = try await whisperService.transcribe(
+                wavData: wavData,
+                dictionaryPrompt: dictPrompt
+            )
             Log.pipelineSignpost.endInterval("upload", state)
         } catch APIError.emptyTranscription {
             Log.pipelineSignpost.endInterval("upload", state)

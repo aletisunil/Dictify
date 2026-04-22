@@ -209,6 +209,8 @@ struct HomeView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var permissionManager = PermissionManager()
     @AppStorage("activationKey") private var activationKey: String = "fn"
+    @State private var isRequestingMicrophonePermission = false
+    @State private var isRequestingAccessibilityPermission = false
     let onJumpToHistory: () -> Void
     let onJumpToAPI: () -> Void
 
@@ -362,13 +364,67 @@ struct HomeView: View {
         ) {
             HStack(spacing: 8) {
                 if micMissing {
-                    Button("Open Mic Settings") { permissionManager.openMicrophoneSettings() }
+                    Button(micButtonLabel) { handleMicrophoneAction() }
                 }
                 if axMissing {
-                    Button("Open Accessibility Settings") { permissionManager.openAccessibilitySettings() }
+                    Button(axButtonLabel) { handleAccessibilityAction() }
                 }
             }
             .controlSize(.small)
+        }
+    }
+
+    private var micButtonLabel: String {
+        if permissionManager.microphoneDenied {
+            return isRequestingMicrophonePermission ? "Check Again" : "Open Mic Settings"
+        }
+        return "Enable Microphone"
+    }
+
+    private var axButtonLabel: String {
+        isRequestingAccessibilityPermission ? "Check Again" : "Open Accessibility Settings"
+    }
+
+    private func handleMicrophoneAction() {
+        // Mirror the onboarding flow: if the status is `.notDetermined`, show
+        // the native TCC popup. If it was previously denied, `requestAccess` is
+        // a no-op — send the user to System Settings and poll until they
+        // re-grant.
+        if permissionManager.microphoneDenied {
+            permissionManager.checkMicrophonePermission()
+            if permissionManager.microphoneGranted {
+                isRequestingMicrophonePermission = false
+                return
+            }
+            permissionManager.openMicrophoneSettings()
+            isRequestingMicrophonePermission = true
+            permissionManager.startPollingMicrophone { _ in
+                isRequestingMicrophonePermission = false
+                permissionManager.checkAll()
+            }
+            return
+        }
+        Task {
+            let granted = await permissionManager.requestMicrophonePermission()
+            if granted {
+                permissionManager.checkAll()
+            } else {
+                permissionManager.checkMicrophonePermission()
+            }
+        }
+    }
+
+    private func handleAccessibilityAction() {
+        permissionManager.checkAll()
+        if permissionManager.accessibilityGranted {
+            isRequestingAccessibilityPermission = false
+            return
+        }
+        permissionManager.openAccessibilitySettings()
+        isRequestingAccessibilityPermission = true
+        permissionManager.startPollingAccessibility { _ in
+            isRequestingAccessibilityPermission = false
+            permissionManager.checkAll()
         }
     }
 

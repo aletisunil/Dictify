@@ -36,7 +36,7 @@ final class ClipboardPaster {
         let changeCountBeforeOverwrite = pasteboard.changeCount
 
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        Self.writeConcealed(text, to: pasteboard)
         let changeCountAfterOverwrite = pasteboard.changeCount
 
         guard CGPreflightPostEventAccess() else {
@@ -97,7 +97,18 @@ final class ClipboardPaster {
     func copyToClipboard(_ text: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        Self.writeConcealed(text, to: pasteboard)
+    }
+
+    /// Writes `text` to the pasteboard alongside the nspasteboard.org
+    /// "concealed" marker so third-party clipboard managers (Raycast, Alfred,
+    /// Maccy, Paste, etc.) skip recording the transcription in their history.
+    /// Spec: http://nspasteboard.org
+    private static func writeConcealed(_ text: String, to pasteboard: NSPasteboard) {
+        let item = NSPasteboardItem()
+        item.setString(text, forType: .string)
+        item.setString("", forType: NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"))
+        pasteboard.writeObjects([item])
     }
 
     static func shouldSkipAccessibilityFor(bundleID: String?) -> Bool {

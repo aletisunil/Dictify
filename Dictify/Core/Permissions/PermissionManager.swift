@@ -5,7 +5,12 @@ import AVFoundation
 final class PermissionManager: ObservableObject {
     @Published var microphoneGranted = false
     @Published var accessibilityGranted = false
+    /// True when microphone access was previously denied — asking again via
+    /// AVCaptureDevice.requestAccess is a no-op, so the UI must send the user
+    /// to System Settings instead.
+    @Published var microphoneDenied = false
     private var accessibilityPollTask: Task<Void, Never>?
+    private var microphonePollTask: Task<Void, Never>?
     private var activationObserver: NSObjectProtocol?
     private let systemSettingsBundleIdentifiers = [
         "com.apple.systempreferences",
@@ -46,10 +51,13 @@ final class PermissionManager: ObservableObject {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
             microphoneGranted = true
+            microphoneDenied = false
         case .notDetermined:
             microphoneGranted = false
+            microphoneDenied = false
         default:
             microphoneGranted = false
+            microphoneDenied = true
         }
     }
 
@@ -94,6 +102,18 @@ final class PermissionManager: ObservableObject {
             "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
             "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Microphone"
         ])
+    }
+
+    /// If microphone access has never been asked, show the system TCC prompt.
+    /// Otherwise (granted/denied/restricted) send the user to System Settings,
+    /// since AVCaptureDevice.requestAccess is a no-op in those states.
+    func promptOrOpenMicrophoneSettings() async {
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+            _ = await requestMicrophonePermission()
+            checkMicrophonePermission()
+            return
+        }
+        openMicrophoneSettings()
     }
 
     private func openFirstWorkingURL(_ urlStrings: [String]) {
@@ -165,9 +185,45 @@ final class PermissionManager: ObservableObject {
         accessibilityPollTask = nil
     }
 
+    func startPollingMicrophone(
+        timeout: TimeInterval = 60,
+        completion: @escaping @MainActor @Sendable (Bool) -> Void
+    ) {
+        microphonePollTask?.cancel()
+        microphonePollTask = Task { @MainActor [weak self] in
+            let startedAt = Date()
+
+            while !Task.isCancelled {
+                guard let self = self else { return }
+
+                self.checkMicrophonePermission()
+                if self.microphoneGranted {
+                    self.microphonePollTask = nil
+                    completion(true)
+                    return
+                }
+
+                if Date().timeIntervalSince(startedAt) >= timeout {
+                    self.microphonePollTask = nil
+                    completion(false)
+                    return
+                }
+
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
+    }
+
+    func stopPollingMicrophone() {
+        microphonePollTask?.cancel()
+        microphonePollTask = nil
+    }
+
     func invalidate() {
         accessibilityPollTask?.cancel()
         accessibilityPollTask = nil
+        microphonePollTask?.cancel()
+        microphonePollTask = nil
         if let observer = activationObserver {
             NotificationCenter.default.removeObserver(observer)
             activationObserver = nil

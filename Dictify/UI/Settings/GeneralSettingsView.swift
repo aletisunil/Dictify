@@ -129,7 +129,7 @@ struct GeneralSettingsView: View {
 
                 HStack(spacing: 8) {
                     Button("Open Microphone Settings") {
-                        permissionManager.openMicrophoneSettings()
+                        Task { await permissionManager.promptOrOpenMicrophoneSettings() }
                     }
                     Button("Open Accessibility Settings") {
                         permissionManager.openAccessibilitySettings()

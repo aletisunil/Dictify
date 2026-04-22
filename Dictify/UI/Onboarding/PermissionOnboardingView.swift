@@ -23,6 +23,7 @@ struct PermissionOnboardingView: View {
 
     @State private var currentPage: OnboardingPage = .welcome
     @State private var isRequestingAccessibilityPermission = false
+    @State private var isRequestingMicrophonePermission = false
 
     // API Key state
     @State private var apiKey = ""
@@ -300,14 +301,45 @@ struct PermissionOnboardingView: View {
                 PermissionStep(
                     icon: "mic.fill",
                     title: "Microphone",
-                    description: "Required to capture your voice for transcription",
+                    description: permissionManager.microphoneDenied
+                        ? (isRequestingMicrophonePermission
+                            ? "Enable Dictify in System Settings, then return here"
+                            : "Microphone access was previously denied — enable it in System Settings")
+                        : "Required to capture your voice for transcription",
                     isGranted: permissionManager.microphoneGranted,
                     isCurrent: !permissionManager.microphoneGranted,
+                    isActionInProgress: isRequestingMicrophonePermission,
+                    buttonLabel: permissionManager.microphoneDenied
+                        ? (isRequestingMicrophonePermission ? "Check Again" : "Open Settings")
+                        : "Enable",
                     action: {
+                        // When the user has previously denied microphone access
+                        // (common after reinstall — TCC retains the decision),
+                        // requestAccess returns false instantly without any
+                        // prompt. Send them to System Settings instead.
+                        if permissionManager.microphoneDenied {
+                            permissionManager.checkMicrophonePermission()
+                            if permissionManager.microphoneGranted {
+                                isRequestingMicrophonePermission = false
+                                return
+                            }
+                            permissionManager.openMicrophoneSettings()
+                            isRequestingMicrophonePermission = true
+                            permissionManager.startPollingMicrophone { _ in
+                                isRequestingMicrophonePermission = false
+                                permissionManager.checkAll()
+                            }
+                            return
+                        }
                         Task {
                             let granted = await permissionManager.requestMicrophonePermission()
                             if granted {
                                 permissionManager.checkAll()
+                            } else {
+                                // First request returned false — status is now
+                                // .denied. Refresh so the next tap routes to
+                                // System Settings.
+                                permissionManager.checkMicrophonePermission()
                             }
                         }
                     }
@@ -354,12 +386,17 @@ struct PermissionOnboardingView: View {
         .onAppear {
             permissionManager.checkAll()
             isRequestingAccessibilityPermission = false
+            isRequestingMicrophonePermission = false
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             permissionManager.checkAll()
             if permissionManager.accessibilityGranted {
                 isRequestingAccessibilityPermission = false
                 permissionManager.stopPollingAccessibility()
+            }
+            if permissionManager.microphoneGranted {
+                isRequestingMicrophonePermission = false
+                permissionManager.stopPollingMicrophone()
             }
         }
     }

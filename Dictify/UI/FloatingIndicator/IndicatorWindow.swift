@@ -9,6 +9,7 @@ final class IndicatorWindow {
     private var cancellable: AnyCancellable?
     private var screenObserver: NSObjectProtocol?
     private var hideGeneration = 0
+    private var errorDismissTask: Task<Void, Never>?
 
     init(appState: AppState) {
         self.appState = appState
@@ -29,13 +30,19 @@ final class IndicatorWindow {
         cancellable = appState.$pipelineState
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
+                guard let self else { return }
                 switch state {
                 case .idle:
-                    self?.hidePanel()
+                    self.errorDismissTask?.cancel()
+                    self.errorDismissTask = nil
+                    self.hidePanel()
                 case .recording, .transcribing, .refining, .inserting:
-                    self?.showPanel()
+                    self.errorDismissTask?.cancel()
+                    self.errorDismissTask = nil
+                    self.showPanel()
                 case .error:
-                    self?.showPanel()
+                    self.showPanel()
+                    self.scheduleErrorDismiss()
                 }
             }
     }
@@ -79,6 +86,18 @@ final class IndicatorWindow {
                 self?.panel?.alphaValue = 1
             }
         })
+    }
+
+    private func scheduleErrorDismiss() {
+        errorDismissTask?.cancel()
+        errorDismissTask = Task { @MainActor [weak self, appState] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard let self, !Task.isCancelled else { return }
+            if case .error = appState.pipelineState {
+                appState.pipelineState = .idle
+            }
+            self.errorDismissTask = nil
+        }
     }
 
     private func repositionIfVisible() {
@@ -182,6 +201,8 @@ final class IndicatorWindow {
     }
 
     func invalidate() {
+        errorDismissTask?.cancel()
+        errorDismissTask = nil
         if let observer = screenObserver {
             NotificationCenter.default.removeObserver(observer)
             screenObserver = nil
