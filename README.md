@@ -57,11 +57,20 @@ Paste your key once — Dictify stores it in the macOS Keychain and verifies it 
 
 ## Install
 
-**Option 1 — Download the signed DMG**
+**Option 1 — Homebrew (recommended)**
+
+```bash
+brew tap aletisunil/tap
+brew install --cask dictify
+```
+
+After tapping once, `brew install dictify` works too, and `brew upgrade --cask dictify` keeps it current.
+
+**Option 2 — Download the signed DMG**
 
 Grab the latest `Dictify.dmg` from the [Releases page](../../releases), drag the app to `/Applications`, and launch.
 
-**Option 2 — Build from source**
+**Option 3 — Build from source**
 
 Open `Dictify.xcodeproj` in Xcode and press ⌘R for the fastest feedback loop.
 
