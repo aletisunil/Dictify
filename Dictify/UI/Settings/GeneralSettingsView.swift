@@ -16,6 +16,10 @@ struct GeneralSettingsView: View {
     @AppStorage("showElapsedTime") private var showElapsedTime: Bool = true
     @AppStorage("tapHoldThreshold") private var tapHoldThreshold: Double = 0.2
     @AppStorage("showInDock") private var showInDock: Bool = true
+    @AppStorage("selectedInputDeviceUID") private var selectedInputDeviceUID: String = ""
+
+    /// Human-readable name of the current selection, shown on the collapsed menu.
+    @State private var selectedDisplayName: String = "System Default"
 
     var body: some View {
         Form {
@@ -65,6 +69,36 @@ struct GeneralSettingsView: View {
                 }
                 Slider(value: $tapHoldThreshold, in: 0.1...0.5, step: 0.05)
                 Text("Hold longer than this to dictate; shorter taps are cancelled.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Microphone") {
+                HStack {
+                    Text("Input Device")
+                    Spacer()
+                    Menu {
+                        // The content closure re-runs each time the menu opens,
+                        // so the list reflects devices connected/removed since
+                        // the window was last shown — no manual refresh needed.
+                        let devices = AudioDeviceManager.inputDevices()
+                        let defaultName = AudioDeviceManager.defaultInputDeviceName()
+
+                        deviceMenuItem(
+                            title: defaultName.map { "System Default (\($0))" } ?? "System Default",
+                            uid: "")
+
+                        if !devices.isEmpty { Divider() }
+
+                        ForEach(devices) { device in
+                            deviceMenuItem(title: device.name, uid: device.uid)
+                        }
+                    } label: {
+                        Text(selectedDisplayName)
+                    }
+                    .fixedSize()
+                }
+                Text("Choose which microphone Dictify records from. \"System Default\" follows your macOS sound input setting.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -154,6 +188,10 @@ struct GeneralSettingsView: View {
         .onAppear {
             permissionManager.checkAll()
             syncLaunchAtLoginState()
+            refreshSelectedDisplayName()
+        }
+        .onChange(of: selectedInputDeviceUID) { _, _ in
+            refreshSelectedDisplayName()
         }
         .onDisappear { stopRecordingShortcut() }
     }
@@ -228,6 +266,31 @@ struct GeneralSettingsView: View {
                     try SMAppService.mainApp.unregister()
                 }
             } catch {}
+        }
+    }
+
+    @ViewBuilder
+    private func deviceMenuItem(title: String, uid: String) -> some View {
+        Button {
+            selectedInputDeviceUID = uid
+        } label: {
+            if selectedInputDeviceUID == uid {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
+    }
+
+    /// Resolves the stored UID to a display name for the collapsed menu label.
+    private func refreshSelectedDisplayName() {
+        if selectedInputDeviceUID.isEmpty {
+            let name = AudioDeviceManager.defaultInputDeviceName()
+            selectedDisplayName = name.map { "System Default (\($0))" } ?? "System Default"
+        } else if let device = AudioDeviceManager.inputDevices().first(where: { $0.uid == selectedInputDeviceUID }) {
+            selectedDisplayName = device.name
+        } else {
+            selectedDisplayName = "Unavailable device"
         }
     }
 

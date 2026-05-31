@@ -47,6 +47,6 @@ enum Constants {
         static let indicatorWidth: CGFloat = 176
         static let indicatorHeight: CGFloat = 42
         static let indicatorCornerRadius: CGFloat = 21
-        static let maxHistoryItems = 10
+        static let maxHistoryItems = 500
     }
 }

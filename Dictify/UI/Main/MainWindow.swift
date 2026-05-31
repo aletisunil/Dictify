@@ -565,7 +565,7 @@ struct HistoryView: View {
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         ForEach(filtered) { record in
-                            TranscriptionCardRow(record: record, expanded: true)
+                            TranscriptionCardRow(record: record, expanded: true, editable: true)
                         }
                     }
                     .padding(.horizontal, 24)
@@ -695,48 +695,90 @@ struct EmptyStateCard: View {
 }
 
 struct TranscriptionCardRow: View {
+    @EnvironmentObject var appState: AppState
     let record: TranscriptionRecord
     var expanded: Bool = false
+    /// When true, the row exposes inline editing of the transcription text
+    /// (used in the full History view).
+    var editable: Bool = false
+
     @State private var copied = false
-    @State private var hovering = false
+    @State private var isEditing = false
+    @State private var draftText = ""
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(record.refinedText)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.primary)
-                    .lineLimit(expanded ? nil : 2)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    if isEditing {
+                        TextEditor(text: $draftText)
+                            .font(.system(size: 13))
+                            .frame(minHeight: 60)
+                            .padding(6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.primary.opacity(0.04))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                            )
+                    } else {
+                        Text(record.refinedText)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.primary)
+                            .lineLimit(expanded ? nil : 2)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
-                HStack(spacing: 8) {
-                    Text(record.date, style: .relative)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
-                    if copied {
-                        Label("Copied", systemImage: "checkmark")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.green)
+                    HStack(spacing: 8) {
+                        Text(record.date, style: .relative)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                        if record.edited {
+                            Label("Edited", systemImage: "pencil")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        if copied {
+                            Label("Copied", systemImage: "checkmark")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.green)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                if !isEditing {
+                    if editable {
+                        IconButton(systemName: "pencil", help: "Edit transcription") {
+                            draftText = record.refinedText
+                            withAnimation(.easeOut(duration: 0.12)) { isEditing = true }
+                        }
+                    }
+                    IconButton(systemName: copied ? "checkmark" : "doc.on.doc",
+                               tint: copied ? .green : .secondary,
+                               help: "Copy transcription") {
+                        copyText()
                     }
                 }
             }
 
-            Spacer()
-
-            Button(action: copyText) {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(copied ? .green : .secondary)
-                    .frame(width: 28, height: 28)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7)
-                            .fill(Color.primary.opacity(hovering ? 0.08 : 0.04))
-                    )
+            if isEditing {
+                HStack(spacing: 8) {
+                    Spacer()
+                    Button("Cancel") {
+                        withAnimation(.easeOut(duration: 0.12)) { isEditing = false }
+                    }
+                    .controlSize(.small)
+                    Button("Save") { saveEdit() }
+                        .controlSize(.small)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
             }
-            .buttonStyle(.plain)
-            .onHover { hovering = $0 }
-            .help("Copy transcription")
         }
         .padding(14)
         .background(
@@ -749,6 +791,20 @@ struct TranscriptionCardRow: View {
         )
     }
 
+    private func saveEdit() {
+        let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        if trimmed != record.refinedText {
+            var updated = record
+            updated.refinedText = trimmed
+            updated.edited = true
+            appState.historyStore?.update(updated)
+        }
+
+        withAnimation(.easeOut(duration: 0.12)) { isEditing = false }
+    }
+
     private func copyText() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(record.refinedText, forType: .string)
@@ -756,6 +812,33 @@ struct TranscriptionCardRow: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             withAnimation(.easeOut(duration: 0.15)) { copied = false }
         }
+    }
+}
+
+/// Small square icon button with its own hover highlight, so each button in a
+/// row reacts independently rather than sharing one hover state.
+private struct IconButton: View {
+    let systemName: String
+    var tint: Color = .secondary
+    let help: String
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 28, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(Color.primary.opacity(hovering ? 0.08 : 0.04))
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(help)
     }
 }
 

@@ -54,4 +54,11 @@ final class DictifySettings {
         get { defaults.string(forKey: "refinementSpeedMode") ?? "quality" }
         set { defaults.set(newValue, forKey: "refinementSpeedMode") }
     }
+
+    /// Core Audio UID of the preferred microphone. Empty string means "follow
+    /// the macOS system default input device".
+    var selectedInputDeviceUID: String {
+        get { defaults.string(forKey: "selectedInputDeviceUID") ?? "" }
+        set { defaults.set(newValue, forKey: "selectedInputDeviceUID") }
+    }
 }

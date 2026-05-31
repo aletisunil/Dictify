@@ -90,8 +90,11 @@ actor TranscriptionPipeline {
             return
         }
 
+        let preferredDeviceUID = await MainActor.run { settings.selectedInputDeviceUID }
+
         do {
             try audioEngine.startCapture(
+                preferredDeviceUID: preferredDeviceUID,
                 levelCallback: { [weak appState] levels in
                     appState?.audioLevels = levels
                 },

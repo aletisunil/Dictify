@@ -41,6 +41,18 @@ struct AboutSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            // Feedback
+            VStack(spacing: 6) {
+                Text("Feedback & Support")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                Link(destination: feedbackURL) {
+                    Label(feedbackEmail, systemImage: "envelope")
+                        .font(.caption)
+                }
+                .help("Send feedback or report an issue")
+            }
+
             Spacer()
 
             Text("\u{00A9} 2026 Sunil Aleti")
@@ -53,5 +65,13 @@ struct AboutSettingsView: View {
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    private let feedbackEmail = "iam@sunilaleti.dev"
+
+    private var feedbackURL: URL {
+        let subject = "Dictify Feedback (v\(appVersion))"
+        let encoded = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? subject
+        return URL(string: "mailto:\(feedbackEmail)?subject=\(encoded)") ?? URL(string: "mailto:\(feedbackEmail)")!
     }
 }
