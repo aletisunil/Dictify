@@ -209,6 +209,7 @@ struct HomeView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var permissionManager = PermissionManager()
     @AppStorage("activationKey") private var activationKey: String = "fn"
+    @AppStorage("middleMouseEnabled") private var middleMouseEnabled: Bool = false
     @State private var isRequestingMicrophonePermission = false
     @State private var isRequestingAccessibilityPermission = false
     let onJumpToHistory: () -> Void
@@ -228,6 +229,10 @@ struct HomeView: View {
                 }
 
                 statsRow
+
+                if let historyStore = appState.historyStore {
+                    ContributionGraphView(records: historyStore.records)
+                }
 
                 recentSection
             }
@@ -343,13 +348,18 @@ struct HomeView: View {
     }
 
     private var activationKeyGlyph: String {
+        // Legacy `middleMouse` stored in activationKey means mouse-only.
+        if activationKey == KeyMonitor.middleMouseKey { return "Middle Click" }
+
+        let modifier: String
         switch activationKey {
-        case "control": return "⌃ Control"
-        case "option": return "⌥ Option"
-        case "command": return "⌘ Command"
-        case "shift": return "⇧ Shift"
-        default: return "fn"
+        case "control": modifier = "⌃ Control"
+        case "option": modifier = "⌥ Option"
+        case "command": modifier = "⌘ Command"
+        case "shift": modifier = "⇧ Shift"
+        default: modifier = "fn"
         }
+        return middleMouseEnabled ? "\(modifier) / Middle Click" : modifier
     }
 
     // Banners
@@ -839,6 +849,187 @@ private struct IconButton: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .help(help)
+    }
+}
+
+// MARK: - Contribution Graph
+
+/// GitHub-style activity heatmap: one cell per day for the last year, tinted by
+/// how many transcriptions happened that day. Derived entirely from history, so
+/// it needs no separate tracking.
+struct ContributionGraphView: View {
+    let records: [TranscriptionRecord]
+
+    private let weeks = 53
+    private let cell: CGFloat = 11
+    private let spacing: CGFloat = 3
+    private let monthRowHeight: CGFloat = 15
+    private let headerGap: CGFloat = 5
+
+    private var calendar: Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.locale = .current // otherwise month symbols fall back to "M01"…"M12"
+        cal.firstWeekday = 1 // Sunday-led columns, like GitHub
+        return cal
+    }
+
+    /// Transcriptions per calendar day, keyed by start-of-day.
+    private var countsByDay: [Date: Int] {
+        let cal = calendar
+        var dict: [Date: Int] = [:]
+        for record in records {
+            let day = cal.startOfDay(for: record.date)
+            dict[day, default: 0] += 1
+        }
+        return dict
+    }
+
+    /// Sunday of the first (leftmost) column.
+    private var startSunday: Date {
+        let cal = calendar
+        let today = cal.startOfDay(for: Date())
+        let weekday = cal.component(.weekday, from: today) // 1 = Sunday
+        let thisWeekSunday = cal.date(byAdding: .day, value: -(weekday - 1), to: today)!
+        return cal.date(byAdding: .day, value: -7 * (weeks - 1), to: thisWeekSunday)!
+    }
+
+    private func date(week: Int, row: Int) -> Date {
+        calendar.date(byAdding: .day, value: week * 7 + row, to: startSunday)!
+    }
+
+    private var totalInWindow: Int {
+        let cal = calendar
+        let start = startSunday
+        return records.reduce(0) { sum, record in
+            cal.startOfDay(for: record.date) >= start ? sum + 1 : sum
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 6) {
+                weekdayColumn
+                ScrollView(.horizontal, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: headerGap) {
+                        monthLabels
+                        grid
+                    }
+                }
+            }
+            footer
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private var weekdayColumn: some View {
+        VStack(spacing: spacing) {
+            ForEach(0..<7, id: \.self) { row in
+                Text(weekdayLabel(row))
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 26, height: cell, alignment: .trailing)
+            }
+        }
+        .padding(.top, monthRowHeight + headerGap)
+    }
+
+    private func weekdayLabel(_ row: Int) -> String {
+        switch row {
+        case 1: return "Mon"
+        case 3: return "Wed"
+        case 5: return "Fri"
+        default: return ""
+        }
+    }
+
+    private var monthLabels: some View {
+        let cal = calendar
+        return HStack(spacing: spacing) {
+            ForEach(0..<weeks, id: \.self) { week in
+                let columnStart = date(week: week, row: 0)
+                let month = cal.component(.month, from: columnStart)
+                let prevMonth = week > 0
+                    ? cal.component(.month, from: date(week: week - 1, row: 0))
+                    : -1
+                Text(month != prevMonth ? monthAbbrev(month) : "")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize()
+                    .frame(width: cell, height: monthRowHeight, alignment: .leading)
+            }
+        }
+    }
+
+    private func monthAbbrev(_ month: Int) -> String {
+        let symbols = calendar.shortMonthSymbols
+        guard month >= 1, month <= symbols.count else { return "" }
+        return symbols[month - 1]
+    }
+
+    private var grid: some View {
+        let today = calendar.startOfDay(for: Date())
+        let counts = countsByDay
+        return HStack(spacing: spacing) {
+            ForEach(0..<weeks, id: \.self) { week in
+                VStack(spacing: spacing) {
+                    ForEach(0..<7, id: \.self) { row in
+                        let day = date(week: week, row: row)
+                        if day > today {
+                            Color.clear.frame(width: cell, height: cell)
+                        } else {
+                            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                .fill(tint(counts[day] ?? 0))
+                                .frame(width: cell, height: cell)
+                                .help(helpText(day: day, count: counts[day] ?? 0))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 8) {
+            Text("\(totalInWindow) dictation\(totalInWindow == 1 ? "" : "s") in the last year")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+            Spacer()
+            Text("Less")
+                .font(.system(size: 9))
+                .foregroundStyle(.tertiary)
+            ForEach([0, 1, 3, 6, 10], id: \.self) { level in
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(tint(level))
+                    .frame(width: cell, height: cell)
+            }
+            Text("More")
+                .font(.system(size: 9))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func tint(_ count: Int) -> Color {
+        switch count {
+        case 0: return Color.primary.opacity(0.06)
+        case 1...2: return Color.green.opacity(0.35)
+        case 3...5: return Color.green.opacity(0.55)
+        case 6...9: return Color.green.opacity(0.78)
+        default: return Color.green
+        }
+    }
+
+    private func helpText(day: Date, count: Int) -> String {
+        let formatted = day.formatted(.dateTime.month(.abbreviated).day().year())
+        if count == 0 { return "No dictations on \(formatted)" }
+        return "\(count) dictation\(count == 1 ? "" : "s") on \(formatted)"
     }
 }
 

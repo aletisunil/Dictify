@@ -9,6 +9,7 @@ struct GeneralSettingsView: View {
     @State private var eventMonitor: Any?
 
     @AppStorage("activationKey") private var activationKey: String = "fn"
+    @AppStorage("middleMouseEnabled") private var middleMouseEnabled: Bool = false
     @AppStorage("refinementEnabled") private var refinementEnabled: Bool = true
     @AppStorage("refinementSpeedMode") private var refinementSpeedMode: String = "quality"
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
@@ -23,7 +24,7 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
-            Section("Activation") {
+            Section("Activation Triggers") {
                 HStack {
                     Text("Activation Key")
                     Spacer()
@@ -54,7 +55,22 @@ struct GeneralSettingsView: View {
                     .controlSize(.small)
                 }
 
+                // Middle click can't be captured via the modifier-key recorder,
+                // so it's an independent, additive trigger: the modifier key
+                // above and middle click both work at once. Handy on compact
+                // (e.g. 75%) keyboards that lack an fn key.
+                Toggle("Middle Mouse Button", isOn: $middleMouseEnabled)
+                Text("Use either trigger to dictate — both stay active.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 if let warning = shortcutWarning(for: activationKey) {
+                    Label(warning, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
+                if middleMouseEnabled, let warning = shortcutWarning(for: KeyMonitor.middleMouseKey) {
                     Label(warning, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
@@ -186,6 +202,7 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear {
+            migrateLegacyMiddleMouseSelection()
             permissionManager.checkAll()
             syncLaunchAtLoginState()
             refreshSelectedDisplayName()
@@ -215,12 +232,22 @@ struct GeneralSettingsView: View {
         case "option": return "⌥ Option"
         case "command": return "⌘ Command"
         case "shift": return "⇧ Shift"
+        case KeyMonitor.middleMouseKey: return "Middle Click"
         default: return "fn"
         }
     }
 
     private func shortcutWarning(for key: String) -> String? {
         KeyMonitor.detectConflict(for: key)
+    }
+
+    /// Older builds stored `middleMouse` directly in `activationKey`, where it
+    /// *replaced* the modifier. Split that into the new additive model: enable
+    /// the mouse trigger and fall the modifier back to fn.
+    private func migrateLegacyMiddleMouseSelection() {
+        guard activationKey == KeyMonitor.middleMouseKey else { return }
+        middleMouseEnabled = true
+        activationKey = "fn"
     }
 
     private func startRecordingShortcut() {
