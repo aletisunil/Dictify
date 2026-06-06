@@ -94,7 +94,10 @@ enum DiagnosticsBundle {
 
     static func suggestedFileName() -> String {
         let stamp = fileTimestamp(Date())
-        return "dictify-logs-\(stamp).txt"
+        // Short random suffix so two near-simultaneous exports (e.g. Copy then
+        // Email within the same second) can't collide on one temp filename.
+        let suffix = String(UUID().uuidString.prefix(8))
+        return "dictify-logs-\(stamp)-\(suffix).txt"
     }
 
     private static var appVersion: String {
@@ -114,20 +117,34 @@ enum DiagnosticsBundle {
         return String(cString: model)
     }
 
-    private static func lineTimestamp(_ date: Date) -> String {
+    // Cached, fixed-format formatters. `lineTimestamp` runs once per record (up to
+    // `maxEntries`), so allocating a DateFormatter per call is wasteful; POSIX
+    // locale keeps the fixed numeric formats stable regardless of user locale.
+    private static let lineFormatter: DateFormatter = {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "HH:mm:ss.SSS"
-        return formatter.string(from: date)
+        return formatter
+    }()
+
+    private static let fileFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
+        return formatter
+    }()
+
+    private static let isoFormatter = ISO8601DateFormatter()
+
+    private static func lineTimestamp(_ date: Date) -> String {
+        lineFormatter.string(from: date)
     }
 
     private static func headerTimestamp(_ date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        return formatter.string(from: date)
+        isoFormatter.string(from: date)
     }
 
     private static func fileTimestamp(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
-        return formatter.string(from: date)
+        fileFormatter.string(from: date)
     }
 }

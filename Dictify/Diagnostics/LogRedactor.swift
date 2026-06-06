@@ -46,8 +46,13 @@ enum LogRedactor {
     }()
 
     /// Redact a single log message.
+    ///
+    /// Truncation runs *first* so the regex passes operate on a bounded input —
+    /// a pathological multi-kilobyte line can't drive regex work unbounded. Any
+    /// secret inside the kept prefix is still scrubbed; anything past the cap was
+    /// going to be dropped regardless.
     static func redact(_ message: String) -> String {
-        var result = message
+        var result = truncate(message)
         for (regex, replacement) in patterns {
             let range = NSRange(result.startIndex..., in: result)
             result = regex.stringByReplacingMatches(
@@ -56,7 +61,7 @@ enum LogRedactor {
                 withTemplate: replacement
             )
         }
-        return truncate(result)
+        return result
     }
 
     /// Redact a whole record's message in place.
