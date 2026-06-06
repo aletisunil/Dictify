@@ -23,7 +23,7 @@ Groq Llama cleans up what you actually said: removes "um" / "uh" / "like", resol
 
 ### One home for everything
 
-Home, history, dictionary, snippets, and settings all live in a single main window with a sidebar. The Home tab shows live stats — session words, total words, words-per-minute, and your most recent transcriptions. Close the window whenever you like; the global hotkey keeps working in the background, and a menu bar icon is always there for a quick reopen or quit.
+Home, history, dictionary, snippets, and settings all live in a single main window with a sidebar. The Home tab shows live stats — session words, total words, words-per-minute, a GitHub-style contribution graph of your daily activity, and your most recent transcriptions. Close the window whenever you like; the global hotkey keeps working in the background, and a menu bar icon is always there for a quick reopen or quit.
 
 ### Snippets with categories
 
@@ -42,7 +42,9 @@ Paste your key once — Dictify stores it in the macOS Keychain and verifies it 
 - **Personal dictionary** — teach Dictify your custom terms, names, and phonetic hints; they're injected into the Whisper prompt to bias recognition.
 - **Direct text insertion** — uses macOS Accessibility APIs to type into any text field; falls back to paste if a field is read-only.
 - **Dictation commands** — spoken punctuation ("period", "new paragraph", etc.).
-- **Configurable activation** — choose `fn` or record any custom key/combo. Adjust the tap-vs-hold threshold to taste.
+- **Configurable activation** — choose `fn`, record any custom key/combo, or enable the middle-mouse button as an extra trigger. Adjust the tap-vs-hold threshold to taste.
+- **Microphone selection** — pick which input device Dictify records from, or follow the system default.
+- **Diagnostics & log sharing** — something went wrong? Copy or email recent logs to the developer with one click. Logs are redacted — no API keys or dictated text are ever included.
 - **Sound effects & visual feedback** — optional start/stop tones and an elapsed-time readout on the floating indicator.
 - **Optional Dock presence** — run as a menu-bar-only app or show in the Dock, your call.
 - **Launch at login** — one toggle, handled via `SMAppService`.
@@ -96,6 +98,8 @@ No code signing is needed for local development. The release pipeline (signing, 
 Dictify sends recorded audio only to [Groq's API](https://groq.com/privacy-policy/) for transcription and refinement. There is no analytics, no telemetry, and no other network traffic. The app ships a privacy manifest declaring exactly what system APIs it touches and why.
 
 Your Groq API key is stored encrypted in the macOS Keychain. Your dictionary, snippets, and transcription history are stored as plain JSON under `~/Library/Application Support/Dictify/` — local to your Mac.
+
+Diagnostic logs stay on your Mac unless you explicitly choose to share them, and are redacted to strip API keys and dictated text before they leave the app.
 
 ## License
 

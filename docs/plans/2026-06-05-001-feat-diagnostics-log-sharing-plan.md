@@ -1,7 +1,7 @@
 ---
 title: "feat: Diagnostics log collection + share-with-developer"
 type: feat
-status: active
+status: completed
 date: 2026-06-05
 depth: standard
 ---

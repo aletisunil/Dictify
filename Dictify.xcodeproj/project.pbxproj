@@ -601,7 +601,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app;
 				PRODUCT_NAME = Dictify;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -628,7 +628,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app;
 				PRODUCT_NAME = Dictify;
 				SWIFT_EMIT_LOC_STRINGS = YES;

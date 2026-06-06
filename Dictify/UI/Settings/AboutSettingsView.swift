@@ -77,7 +77,7 @@ struct AboutSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.tertiary)
 
-            Text("Something went wrong? Share your recent logs so the developer can investigate. Logs are redacted — no API keys or dictated text are included.")
+            Text("Something went wrong?\nLogs are redacted — no API keys or dictated text are included.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -88,12 +88,6 @@ struct AboutSettingsView: View {
                     Task { await copyLogs() }
                 } label: {
                     Label("Copy Logs", systemImage: "doc.on.clipboard")
-                }
-
-                Button {
-                    Task { await saveLogs() }
-                } label: {
-                    Label("Save Bundle…", systemImage: "square.and.arrow.down")
                 }
 
                 Button {
@@ -133,27 +127,11 @@ struct AboutSettingsView: View {
         statusMessage = "Logs copied to clipboard."
     }
 
-    private func saveLogs() async {
-        let bundle = await makeBundle()
-        if let url = DiagnosticsBundle.saveBundle(bundle) {
-            DiagnosticsBundle.revealInFinder(url)
-            statusMessage = "Saved \(url.lastPathComponent)."
-        } else {
-            statusMessage = nil
-        }
-    }
-
     private func emailLogs() async {
         let bundle = await makeBundle()
-        // mailto can't attach, so save + reveal first, then open the draft.
-        let url = DiagnosticsBundle.saveBundle(bundle)
-        if let url {
-            DiagnosticsBundle.revealInFinder(url)
-        }
-        DiagnosticsBundle.composeEmail(bundleURL: url)
-        statusMessage = url == nil
-            ? "Opened email draft."
-            : "Saved \(url!.lastPathComponent) — attach it to the email."
+        statusMessage = DiagnosticsBundle.email(bundle: bundle)
+            ? nil
+            : "Couldn't open Mail. Use Copy Logs instead."
     }
 
     // MARK: - Feedback

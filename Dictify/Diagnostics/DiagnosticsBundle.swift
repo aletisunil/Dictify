@@ -57,15 +57,30 @@ enum DiagnosticsBundle {
         pasteboard.setString(text, forType: .string)
     }
 
-    /// Present a save panel and write the bundle. Returns the written URL, or
-    /// `nil` if the user cancelled or the write failed.
+    /// Open a mail draft to the developer with the bundle **attached**.
+    ///
+    /// `mailto:` can't carry attachments, so we use `NSSharingService`'s
+    /// compose-email service, which takes the file URL as an item and attaches
+    /// it for real. The bundle is written to a temp file first (no save panel).
+    /// Returns `true` if a draft was opened, `false` if Mail couldn't be reached
+    /// (caller should fall back to Copy Logs).
     @MainActor
-    static func saveBundle(_ text: String) -> URL? {
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = suggestedFileName()
-        panel.allowedContentTypes = [.plainText]
-        panel.canCreateDirectories = true
-        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+    static func email(bundle text: String) -> Bool {
+        guard let fileURL = writeTempBundle(text) else { return false }
+        guard let service = NSSharingService(named: .composeEmail) else { return false }
+        service.recipients = [Constants.Diagnostics.supportEmail]
+        service.subject = "Dictify Diagnostics (v\(appVersion))"
+        let body = "Describe what went wrong here:\n\n\n"
+        let items: [Any] = [body, fileURL]
+        guard service.canPerform(withItems: items) else { return false }
+        service.perform(withItems: items)
+        return true
+    }
+
+    /// Write the bundle to a uniquely-named file in the temp directory so it can
+    /// be attached to an email. Returns `nil` on write failure.
+    static func writeTempBundle(_ text: String) -> URL? {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(suggestedFileName())
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)
             return url
@@ -75,37 +90,11 @@ enum DiagnosticsBundle {
         }
     }
 
-    static func revealInFinder(_ url: URL) {
-        NSWorkspace.shared.activateFileViewerSelecting([url])
-    }
-
-    /// Open a pre-filled mail draft to the developer. `mailto:` cannot attach
-    /// files, so the caller is expected to have saved + revealed the bundle
-    /// first; the body reminds the user to attach it.
-    static func composeEmail(bundleURL: URL?) {
-        let subject = "Dictify Diagnostics (v\(appVersion))"
-        var body = """
-        Describe what went wrong here:
-
-
-        """
-        if let bundleURL {
-            body += "\n(Please attach the saved log file: \(bundleURL.lastPathComponent))\n"
-        }
-        let query = "subject=\(encode(subject))&body=\(encode(body))"
-        guard let url = URL(string: "mailto:\(Constants.Diagnostics.supportEmail)?\(query)") else { return }
-        NSWorkspace.shared.open(url)
-    }
-
     // MARK: - Helpers
 
     static func suggestedFileName() -> String {
         let stamp = fileTimestamp(Date())
         return "dictify-logs-\(stamp).txt"
-    }
-
-    private static func encode(_ value: String) -> String {
-        value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
     }
 
     private static var appVersion: String {
