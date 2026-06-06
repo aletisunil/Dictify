@@ -152,6 +152,18 @@ final class AudioEngine: @unchecked Sendable {
     private var sleepObserver: NSObjectProtocol?
     private var interruptionHandler: (@Sendable (AudioEngineInterruption) -> Void)?
 
+    // Retained so the configuration-change recovery path can reinstall the tap
+    // and re-target the selected device without the caller re-invoking startCapture.
+    // All three are read/written under stateQueue.
+    private var levelCallback: (@MainActor @Sendable ([Float]) -> Void)?
+    private var preferredDeviceUID: String = ""
+    /// True while a config-change recovery is in flight, so the burst of
+    /// notifications a single route switch emits doesn't stack restarts.
+    private var isRecovering = false
+    /// Bumped on every start/stop/teardown. A recovery captures the value at
+    /// entry and bails if it changed (capture ended underneath it).
+    private var captureGeneration = 0
+
     private let targetSampleRate: Double = Constants.Audio.sampleRate
     private let targetChannels: AVAudioChannelCount = AVAudioChannelCount(Constants.Audio.channels)
 
@@ -185,24 +197,7 @@ final class AudioEngine: @unchecked Sendable {
         guard !already else { throw AudioEngineError.alreadyRecording }
 
         let inputNode = engine.inputNode
-
-        // Route capture to the user-selected microphone. When the UID is empty
-        // or the device is unplugged, fall back to the system default input.
-        if let deviceID = AudioDeviceManager.deviceID(forUID: preferredDeviceUID),
-           let audioUnit = inputNode.audioUnit {
-            var mutableID = deviceID
-            let status = AudioUnitSetProperty(
-                audioUnit,
-                kAudioOutputUnitProperty_CurrentDevice,
-                kAudioUnitScope_Global,
-                0,
-                &mutableID,
-                UInt32(MemoryLayout<AudioDeviceID>.size)
-            )
-            if status != noErr {
-                Log.audio.error("Failed to set input device (\(status, privacy: .public)); using default")
-            }
-        }
+        applyPreferredInputDevice(preferredDeviceUID, to: inputNode)
 
         let inputFormat = inputNode.outputFormat(forBus: 0)
         guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
@@ -228,6 +223,10 @@ final class AudioEngine: @unchecked Sendable {
             currentInputFormat = nil
             currentTargetFormat = targetFormat
             overflowed = false
+            self.levelCallback = levelCallback
+            self.preferredDeviceUID = preferredDeviceUID
+            isRecovering = false
+            captureGeneration += 1
         }
         interruptionHandler = onInterruption
 
@@ -412,8 +411,8 @@ final class AudioEngine: @unchecked Sendable {
             queue: .main
         ) { [weak self] _ in
             guard let self = self else { return }
-            Log.audio.notice("AVAudioEngine configuration change — tearing down capture")
-            self.tearDown(reason: .deviceChanged)
+            Log.audio.notice("AVAudioEngine configuration change — attempting recovery")
+            self.handleConfigurationChange()
         }
 
         let wsNC = NSWorkspace.shared.notificationCenter
@@ -439,6 +438,97 @@ final class AudioEngine: @unchecked Sendable {
         }
     }
 
+    /// Routes capture to the user-selected microphone. When the UID is empty or
+    /// the device is unplugged, the engine falls back to the system default input.
+    private func applyPreferredInputDevice(_ uid: String, to inputNode: AVAudioInputNode) {
+        guard let deviceID = AudioDeviceManager.deviceID(forUID: uid),
+              let audioUnit = inputNode.audioUnit else { return }
+        var mutableID = deviceID
+        let status = AudioUnitSetProperty(
+            audioUnit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &mutableID,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+        if status != noErr {
+            Log.audio.error("Failed to set input device (\(status, privacy: .public)); using default")
+        }
+    }
+
+    /// Handle an `AVAudioEngineConfigurationChange`. This fires both when the
+    /// user genuinely swaps the active device mid-recording AND when a freshly
+    /// engaged Bluetooth route is still settling — AirPods flip into 24 kHz HFP a
+    /// beat *after* `engine.start()` returned, emitting this notification once the
+    /// switch completes. Apple requires the engine be restarted after this
+    /// notification, so rather than abort, rebuild the tap on the new route and
+    /// restart capture (the buffer continues, the converter rebuilds lazily from
+    /// the new format). Only if the restart fails — device truly gone — do we
+    /// surface `.deviceChanged`.
+    private func handleConfigurationChange() {
+        let proceed = stateQueue.sync { () -> Bool in
+            guard tapInstalled, !isRecovering else { return false }
+            isRecovering = true
+            return true
+        }
+        guard proceed else { return }
+
+        let (callback, uid, generation) = stateQueue.sync {
+            (levelCallback, preferredDeviceUID, captureGeneration)
+        }
+        guard let callback = callback else {
+            stateQueue.sync { isRecovering = false }
+            return
+        }
+
+        // Off the main queue: the retry below briefly blocks (Thread.sleep) while
+        // the route settles, which must not stall the UI run loop.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+
+            // Coalesce the burst of notifications a single route switch emits, and
+            // let the route reach its final format before we re-read it.
+            Thread.sleep(forTimeInterval: 0.15)
+
+            // Bail if capture ended (stop/teardown) while we were waiting.
+            guard self.stateQueue.sync(execute: { self.captureGeneration }) == generation else {
+                self.stateQueue.sync { self.isRecovering = false }
+                return
+            }
+
+            let inputNode = self.engine.inputNode
+            if self.stateQueue.sync(execute: { self.tapInstalled }) {
+                inputNode.removeTap(onBus: 0)
+                self.stateQueue.sync { self.tapInstalled = false }
+            }
+            self.engine.reset()
+            self.applyPreferredInputDevice(uid, to: inputNode)
+
+            do {
+                try self.startEngineWithRetry(inputNode: inputNode, levelCallback: callback)
+                // stopCapture/tearDown may have run during the restart window; if so,
+                // unwind the engine we just brought back up instead of leaving it live.
+                let stale = self.stateQueue.sync(execute: { self.captureGeneration }) != generation
+                if stale {
+                    inputNode.removeTap(onBus: 0)
+                    if self.engine.isRunning { self.engine.stop() }
+                    self.stateQueue.sync {
+                        self.tapInstalled = false
+                        self.isRecovering = false
+                    }
+                    return
+                }
+                Log.audio.notice("Recovered capture after configuration change")
+                self.stateQueue.sync { self.isRecovering = false }
+            } catch {
+                Log.audio.error("Failed to recover after configuration change: \(error.localizedDescription, privacy: .public)")
+                self.stateQueue.sync { self.isRecovering = false }
+                self.tearDown(reason: .deviceChanged)
+            }
+        }
+    }
+
     /// Force-stop the engine and notify the pipeline with `reason`.
     private func tearDown(reason: AudioEngineInterruption) {
         let tapped = stateQueue.sync { tapInstalled }
@@ -450,6 +540,9 @@ final class AudioEngine: @unchecked Sendable {
         }
         stateQueue.sync {
             tapInstalled = false
+            isRecovering = false
+            captureGeneration += 1
+            levelCallback = nil
         }
         removeObservers()
 
@@ -471,6 +564,9 @@ final class AudioEngine: @unchecked Sendable {
 
         return stateQueue.sync {
             tapInstalled = false
+            isRecovering = false
+            captureGeneration += 1
+            levelCallback = nil
             let result = audioBuffer
             audioBuffer = Data()
             recordingStartTime = nil
