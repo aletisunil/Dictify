@@ -50,6 +50,9 @@
 		A10000044 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000046 /* PrivacyInfo.xcprivacy */; };
 		A10000050 /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000050 /* MainWindow.swift */; };
 		A10000051 /* MenuBarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000051 /* MenuBarManager.swift */; };
+		A10000060 /* LogCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000060 /* LogCollector.swift */; };
+		A10000061 /* LogRedactor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000061 /* LogRedactor.swift */; };
+		A10000062 /* DiagnosticsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000062 /* DiagnosticsBundle.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -99,6 +102,9 @@
 		B10000046 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B10000050 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
 		B10000051 /* MenuBarManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarManager.swift; sourceTree = "<group>"; };
+		B10000060 /* LogCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogCollector.swift; sourceTree = "<group>"; };
+		B10000061 /* LogRedactor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogRedactor.swift; sourceTree = "<group>"; };
+		B10000062 /* DiagnosticsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsBundle.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -129,10 +135,21 @@
 				D10000011 /* Storage */,
 				D10000012 /* UI */,
 				D10000017 /* Utilities */,
+				D10000030 /* Diagnostics */,
 				D10000018 /* Resources */,
 				B10000040 /* Dictify.entitlements */,
 			);
 			path = Dictify;
+			sourceTree = "<group>";
+		};
+		D10000030 /* Diagnostics */ = {
+			isa = PBXGroup;
+			children = (
+				B10000060 /* LogCollector.swift */,
+				B10000061 /* LogRedactor.swift */,
+				B10000062 /* DiagnosticsBundle.swift */,
+			);
+			path = Diagnostics;
 			sourceTree = "<group>";
 		};
 		D10000003 /* App */ = {
@@ -435,6 +452,9 @@
 				A10000042 /* TokenBudget.swift in Sources */,
 				A10000043 /* StorageQuarantine.swift in Sources */,
 				A10000051 /* MenuBarManager.swift in Sources */,
+				A10000060 /* LogCollector.swift in Sources */,
+				A10000061 /* LogRedactor.swift in Sources */,
+				A10000062 /* DiagnosticsBundle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

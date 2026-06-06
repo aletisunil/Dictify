@@ -85,6 +85,7 @@ final class KeyMonitor {
                 self?.handleFlagsChanged(event)
             }
         }) else {
+            Log.hotkey.error("Failed to register global flags-changed monitor (Accessibility not trusted?)")
             return false
         }
 
@@ -111,6 +112,7 @@ final class KeyMonitor {
             }
             return event
         }
+        Log.hotkey.notice("Key monitors registered (activationKey: \(self.activationKey, privacy: .public), middleMouse: \(self.middleMouseEnabled, privacy: .public))")
         return true
     }
 

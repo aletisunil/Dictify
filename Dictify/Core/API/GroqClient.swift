@@ -25,10 +25,16 @@ final class GroqClient: @unchecked Sendable {
         var mutableRequest = request
         mutableRequest.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
+        // Non-sensitive request identity for logging: method + endpoint path only.
+        // Never log the Authorization header, request body, or response payload.
+        let method = request.httpMethod ?? "POST"
+        let path = request.url?.path ?? "?"
+
         var lastError: Error = APIError.invalidResponse
 
         for attempt in 0...maxRetries {
             try Task.checkCancellation()
+            let start = Date()
             do {
                 let (data, response) = try await session.data(for: mutableRequest)
 
@@ -36,27 +42,35 @@ final class GroqClient: @unchecked Sendable {
                     throw APIError.invalidResponse
                 }
 
+                let elapsedMs = Int(Date().timeIntervalSince(start) * 1000)
                 switch httpResponse.statusCode {
                 case 200...299:
+                    Log.api.notice("\(method, privacy: .public) \(path, privacy: .public) → \(httpResponse.statusCode, privacy: .public) in \(elapsedMs, privacy: .public)ms (attempt \(attempt + 1, privacy: .public))")
                     return (data, httpResponse)
                 case 401:
+                    Log.api.error("\(method, privacy: .public) \(path, privacy: .public) → 401 unauthorized (check API key)")
                     throw APIError.unauthorized
                 case 429:
                     let retryAfter = Self.parseRetryAfter(httpResponse.value(forHTTPHeaderField: "Retry-After"))
                     if attempt < maxRetries {
                         let delay = retryAfter ?? backoffIntervals[min(attempt, backoffIntervals.count - 1)]
+                        Log.api.notice("\(path, privacy: .public) → 429 rate limited; retrying in \(delay, privacy: .public)s")
                         try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                         continue
                     }
+                    Log.api.error("\(path, privacy: .public) → 429 rate limited; retries exhausted")
                     throw APIError.rateLimited(retryAfter: retryAfter)
                 case 500, 502, 503:
                     if attempt < maxRetries {
                         let delay = backoffIntervals[min(attempt, backoffIntervals.count - 1)]
+                        Log.api.notice("\(path, privacy: .public) → \(httpResponse.statusCode, privacy: .public); retrying in \(delay, privacy: .public)s")
                         try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                         continue
                     }
+                    Log.api.error("\(path, privacy: .public) → \(httpResponse.statusCode, privacy: .public); retries exhausted")
                     throw APIError.serverError(statusCode: httpResponse.statusCode)
                 default:
+                    Log.api.error("\(method, privacy: .public) \(path, privacy: .public) → \(httpResponse.statusCode, privacy: .public)")
                     throw APIError.serverError(statusCode: httpResponse.statusCode)
                 }
             } catch is CancellationError {
@@ -68,10 +82,12 @@ final class GroqClient: @unchecked Sendable {
             } catch {
                 if attempt < maxRetries {
                     let delay = backoffIntervals[min(attempt, backoffIntervals.count - 1)]
+                    Log.api.notice("\(path, privacy: .public) network error: \(error.localizedDescription, privacy: .public); retrying in \(delay, privacy: .public)s")
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     lastError = error
                     continue
                 }
+                Log.api.error("\(path, privacy: .public) network error: \(error.localizedDescription, privacy: .public); retries exhausted")
                 throw APIError.networkError(error)
             }
         }

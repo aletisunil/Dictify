@@ -31,7 +31,13 @@ enum PipelineState: Equatable {
 
 @MainActor
 final class AppState: ObservableObject {
-    @Published var pipelineState: PipelineState = .idle
+    @Published var pipelineState: PipelineState = .idle {
+        didSet {
+            if case .error(let message) = pipelineState {
+                Log.pipeline.error("Pipeline entered error state: \(message, privacy: .public)")
+            }
+        }
+    }
     @Published var audioLevels: [Float] = Array(repeating: 0, count: 15)
     @Published var recordingElapsed: TimeInterval = 0
     @Published private(set) var hasAPIKeyConfigured = false

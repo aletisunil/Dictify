@@ -64,11 +64,16 @@ final class PermissionManager: ObservableObject {
     func requestMicrophonePermission() async -> Bool {
         let granted = await AVCaptureDevice.requestAccess(for: .audio)
         microphoneGranted = granted
+        Log.permissions.notice("Microphone permission \(granted ? "granted" : "denied", privacy: .public)")
         return granted
     }
 
     func checkAccessibilityPermission() {
-        accessibilityGranted = AXIsProcessTrusted()
+        let trusted = AXIsProcessTrusted()
+        if trusted != accessibilityGranted {
+            Log.permissions.notice("Accessibility permission changed → \(trusted ? "granted" : "not granted", privacy: .public)")
+        }
+        accessibilityGranted = trusted
     }
 
     func requestAccessibilityPermission() {

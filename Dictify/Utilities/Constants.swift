@@ -43,6 +43,19 @@ enum Constants {
         static var historyFileURL: URL { appSupportDirectory.appendingPathComponent("history.json") }
     }
 
+    enum Diagnostics {
+        /// How far back to read unified-log entries when building a shareable bundle.
+        static let captureWindow: TimeInterval = 30 * 60
+        /// Hard ceiling on collected entries — keeps OSLogStore reads fast and
+        /// bundles email-sized even if logging is chatty.
+        static let maxEntries = 2000
+        /// Per-line character cap applied during redaction — backstop against a
+        /// stray large payload (e.g. an accidental transcript dump) bloating a bundle.
+        static let maxLineLength = 2000
+        /// Developer support address used by the "Email Logs" action.
+        static let supportEmail = "iam@sunilaleti.dev"
+    }
+
     enum UI {
         static let indicatorWidth: CGFloat = 176
         static let indicatorHeight: CGFloat = 42
