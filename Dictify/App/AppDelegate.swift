@@ -63,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarManager = MenuBarManager(
             onOpen: { [weak self] in
                 guard let self else { return }
-                if self.appState.settings.hasCompletedOnboarding {
+                if self.hasOnboardedDurably() {
                     self.showMainWindow()
                 } else {
                     self.showOnboarding()
@@ -99,9 +99,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// True if onboarding has finished. The stored flag is a plain UserDefaults
+    /// bool, and a write can be lost if cfprefsd doesn't flush before a system
+    /// shutdown — which made onboarding replay after a restart. Fall back to
+    /// durable proof: a Groq API key in the Keychain is saved during onboarding
+    /// and survives reboots. When the fallback fires, repair the flag so later
+    /// launches trust it directly.
+    @MainActor
+    private func hasOnboardedDurably() -> Bool {
+        if appState.settings.hasCompletedOnboarding { return true }
+        if appState.keychainManager?.hasAPIKey == true {
+            appState.settings.hasCompletedOnboarding = true
+            return true
+        }
+        return false
+    }
+
     @MainActor
     private func decideLaunchFlow() {
-        let completed = appState.settings.hasCompletedOnboarding
+        let completed = hasOnboardedDurably()
         let granted = permissionManager?.allPermissionsGranted == true
 
         if !completed {
@@ -184,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
             Task { @MainActor in
-                if !appState.settings.hasCompletedOnboarding {
+                if !hasOnboardedDurably() {
                     showOnboarding()
                 } else {
                     showMainWindow()
