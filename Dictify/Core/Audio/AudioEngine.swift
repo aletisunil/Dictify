@@ -133,7 +133,10 @@ final class AudioEngine: @unchecked Sendable {
     // thread on it for long — only short `sync` appends + state reads.
     private let stateQueue = DispatchQueue(label: "com.dictify.audioengine.state")
 
-    private let engine = AVAudioEngine()
+    // Recreated during start retries: once an input route goes bad, the engine's
+    // inputNode can hold a stale hardware format that `reset()` does not flush,
+    // and every subsequent start fails with -10868 until the instance is replaced.
+    private var engine = AVAudioEngine()
 
     // --- state guarded by stateQueue ---
     private var audioBuffer = Data()
@@ -196,14 +199,6 @@ final class AudioEngine: @unchecked Sendable {
         let already = stateQueue.sync { tapInstalled }
         guard !already else { throw AudioEngineError.alreadyRecording }
 
-        let inputNode = engine.inputNode
-        applyPreferredInputDevice(preferredDeviceUID, to: inputNode)
-
-        let inputFormat = inputNode.outputFormat(forBus: 0)
-        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
-            throw AudioEngineError.inputUnavailable
-        }
-
         guard let targetFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: targetSampleRate,
@@ -238,11 +233,11 @@ final class AudioEngine: @unchecked Sendable {
         // buffer is delivered. The first attempt provokes the switch; retrying once
         // the route settles picks up the node's new format and succeeds.
         do {
-            try startEngineWithRetry(inputNode: inputNode, levelCallback: levelCallback)
+            try startEngineWithRetry(preferredDeviceUID: preferredDeviceUID, levelCallback: levelCallback)
         } catch {
             // Roll back partial state; do not fire interruption handler for a
             // start failure — the throw is the signal.
-            inputNode.removeTap(onBus: 0)
+            engine.inputNode.removeTap(onBus: 0)
             stateQueue.sync {
                 tapInstalled = false
                 recordingStartTime = nil
@@ -266,15 +261,29 @@ final class AudioEngine: @unchecked Sendable {
     /// engages) makes the node's format disagree with the live hardware format and
     /// graph initialization fails with -10868. Each failed attempt provokes — and
     /// then lets settle — the route change, so a later attempt sees a stable format.
+    ///
+    /// If retries on the existing engine keep failing, the engine instance itself
+    /// is replaced: a bad route change can leave the inputNode with a stale
+    /// hardware format that `reset()` never flushes, making -10868 permanent for
+    /// the life of the instance (and otherwise curable only by relaunching the app).
     private func startEngineWithRetry(
-        inputNode: AVAudioInputNode,
+        preferredDeviceUID: String,
         levelCallback: @escaping @MainActor @Sendable ([Float]) -> Void,
-        maxAttempts: Int = 3
+        maxAttempts: Int = 4
     ) throws {
         let bufferSize: AVAudioFrameCount = 4096
         var lastError: Error?
 
         for attempt in 1...maxAttempts {
+            // Attempts 1–2 retry the existing engine (covers the normal HFP
+            // settle); from attempt 3 assume the inputNode is stale and rebuild.
+            if attempt >= 3 {
+                engine = AVAudioEngine()
+                Log.audio.notice("Replaced AVAudioEngine instance for attempt \(attempt, privacy: .public)/\(maxAttempts, privacy: .public)")
+            }
+            let inputNode = engine.inputNode
+            applyPreferredInputDevice(preferredDeviceUID, to: inputNode)
+
             // Re-read the live input format each attempt; a prior failed start may
             // have flipped the device into a new sample rate.
             let inputFormat = inputNode.outputFormat(forBus: 0)
@@ -303,7 +312,9 @@ final class AudioEngine: @unchecked Sendable {
                 )
                 if attempt < maxAttempts {
                     // Let the provoked Bluetooth route change settle before retrying.
-                    Thread.sleep(forTimeInterval: 0.2)
+                    // Doubling backoff (0.2/0.4/0.8s): HFP switches routinely take
+                    // longer than the old fixed 0.2s window.
+                    Thread.sleep(forTimeInterval: 0.2 * pow(2.0, Double(attempt - 1)))
                 }
             }
         }
@@ -405,9 +416,12 @@ final class AudioEngine: @unchecked Sendable {
 
     private func installObservers() {
         let nc = NotificationCenter.default
+        // object: nil, not the current engine — the instance can be replaced
+        // during -10868 recovery, and an observer bound to the old instance
+        // would silently stop firing. This is the app's only AVAudioEngine.
         configObserver = nc.addObserver(
             forName: .AVAudioEngineConfigurationChange,
-            object: engine,
+            object: nil,
             queue: .main
         ) { [weak self] _ in
             guard let self = self else { return }
@@ -497,21 +511,19 @@ final class AudioEngine: @unchecked Sendable {
                 return
             }
 
-            let inputNode = self.engine.inputNode
             if self.stateQueue.sync(execute: { self.tapInstalled }) {
-                inputNode.removeTap(onBus: 0)
+                self.engine.inputNode.removeTap(onBus: 0)
                 self.stateQueue.sync { self.tapInstalled = false }
             }
             self.engine.reset()
-            self.applyPreferredInputDevice(uid, to: inputNode)
 
             do {
-                try self.startEngineWithRetry(inputNode: inputNode, levelCallback: callback)
+                try self.startEngineWithRetry(preferredDeviceUID: uid, levelCallback: callback)
                 // stopCapture/tearDown may have run during the restart window; if so,
                 // unwind the engine we just brought back up instead of leaving it live.
                 let stale = self.stateQueue.sync(execute: { self.captureGeneration }) != generation
                 if stale {
-                    inputNode.removeTap(onBus: 0)
+                    self.engine.inputNode.removeTap(onBus: 0)
                     if self.engine.isRunning { self.engine.stop() }
                     self.stateQueue.sync {
                         self.tapInstalled = false
