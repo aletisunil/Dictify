@@ -6,101 +6,109 @@ struct AboutSettingsView: View {
     @State private var statusMessage: String?
 
     var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
+        SettingsScaffold {
+            identityCard
 
-            // App Icon — the real AppIcon, matching the Dock and sidebar.
-            AppIconImage(size: 100, cornerRadius: 24)
-                .shadow(color: .appAccent.opacity(0.25), radius: 12, y: 4)
+            SettingsSectionLabel(text: "Credits")
+            creditsCard
 
-            // App Name and Version
-            VStack(spacing: 4) {
-                Text("Dictify")
-                    .font(.title.bold())
+            SettingsSectionLabel(text: "Feedback & Support")
+            feedbackCard
 
-                Text("Version \(appVersion)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            // Description
-            Text("Intelligent Voice-to-Text for macOS")
-                .font(.body)
-                .foregroundStyle(.secondary)
-
-            // Credits
-            VStack(spacing: 4) {
-                Text("Powered by")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                Text("Groq — Whisper + Llama")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            // Feedback
-            VStack(spacing: 6) {
-                Text("Feedback & Support")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                Link(destination: feedbackURL) {
-                    Label(feedbackEmail, systemImage: "envelope")
-                        .font(.caption)
-                }
-                .help("Send feedback or report an issue")
-            }
-
-            diagnosticsSection
-
-            Spacer()
+            SettingsSectionLabel(text: "Diagnostics")
+            diagnosticsCard
 
             Text("\u{00A9} 2026 Sunil Aleti")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 4)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-        .background(Color.appWindowBackground)
     }
 
-    // MARK: - Diagnostics
+    // MARK: Identity
 
-    private var diagnosticsSection: some View {
-        VStack(spacing: 8) {
-            Text("Diagnostics")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-
-            Text("Something went wrong?\nLogs are redacted — no API keys or dictated text are included.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: 8) {
-                Button {
-                    Task { await copyLogs() }
-                } label: {
-                    Label("Copy Logs", systemImage: "doc.on.clipboard")
+    private var identityCard: some View {
+        SettingsCard {
+            HStack(spacing: 16) {
+                AppIconImage(size: 60, cornerRadius: 14)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Dictify")
+                        .font(.system(size: 22, weight: .bold))
+                    Text("Intelligent Voice-to-Text for macOS")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                    Text("Version \(appVersion)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
                 }
-
-                Button {
-                    Task { await emailLogs() }
-                } label: {
-                    Label("Email Logs", systemImage: "paperplane")
-                }
+                Spacer()
             }
-            .font(.caption)
-            .disabled(isBuildingBundle)
+            .padding(20)
+        }
+    }
 
-            if isBuildingBundle {
-                ProgressView()
-                    .controlSize(.small)
-            } else if let statusMessage {
-                Text(statusMessage)
-                    .font(.caption2)
+    // MARK: Credits
+
+    private var creditsCard: some View {
+        SettingsCard {
+            SettingsRow("Powered by") {
+                Text("Groq · Whisper + Llama")
+                    .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    // MARK: Feedback
+
+    private var feedbackCard: some View {
+        SettingsCard {
+            SettingsRow("Send feedback or report an issue") {
+                Link(destination: feedbackURL) {
+                    Label(feedbackEmail, systemImage: "envelope")
+                        .font(.system(size: 13))
+                }
+            }
+        }
+    }
+
+    // MARK: Diagnostics
+
+    private var diagnosticsCard: some View {
+        SettingsCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Something went wrong? Logs are redacted — no API keys or dictated text are included.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 8) {
+                    Button {
+                        Task { await copyLogs() }
+                    } label: {
+                        Label("Copy Logs", systemImage: "doc.on.clipboard")
+                    }
+                    Button {
+                        Task { await emailLogs() }
+                    } label: {
+                        Label("Email Logs", systemImage: "paperplane")
+                    }
+                    if isBuildingBundle {
+                        ProgressView().controlSize(.small)
+                    }
+                    Spacer()
+                }
+                .controlSize(.small)
+                .disabled(isBuildingBundle)
+
+                if let statusMessage {
+                    Text(statusMessage)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(18)
         }
     }
 

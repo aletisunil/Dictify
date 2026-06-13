@@ -20,8 +20,43 @@ struct APISettingsView: View {
     }
 
     var body: some View {
-        Form {
-            Section("Groq API Key") {
+        SettingsScaffold {
+            SettingsHeaderCard(
+                icon: "key",
+                title: "API",
+                subtitle: "Groq key, models, and endpoints."
+            )
+
+            SettingsSectionLabel(text: "Groq API Key")
+            apiKeyCard
+
+            SettingsSectionLabel(text: "Models")
+            modelsCard
+
+            SettingsSectionLabel(text: "Endpoints")
+            endpointsCard
+        }
+        .onAppear {
+            appState.refreshAPIKeyStatus()
+            if let key = appState.keychainManager?.getAPIKey() {
+                apiKey = key
+                didSaveAPIKey = !key.isEmpty
+            }
+        }
+        .onDisappear {
+            // Don't leave the plaintext key sitting in view state memory when
+            // the user closes Settings. The Keychain remains the source of truth.
+            apiKey = ""
+            testResult = nil
+            saveError = nil
+        }
+    }
+
+    // MARK: Key
+
+    private var apiKeyCard: some View {
+        SettingsCard {
+            VStack(alignment: .leading, spacing: 12) {
                 if shouldShowMissingKeyWarning {
                     Label("Groq API key is required before dictation can transcribe.", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
@@ -54,31 +89,26 @@ struct APISettingsView: View {
                     .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !appState.hasAPIKeyConfigured)
 
                     if isTesting {
-                        ProgressView()
-                            .scaleEffect(0.7)
+                        ProgressView().scaleEffect(0.7)
                     }
 
                     if let result = testResult {
                         switch result {
                         case .success:
                             Label("Connected", systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                                .font(.caption)
+                                .foregroundStyle(.green).font(.caption)
                         case .failure(let msg):
                             Label(msg, systemImage: "xmark.circle.fill")
-                                .foregroundStyle(.red)
-                                .font(.caption)
+                                .foregroundStyle(.red).font(.caption)
                         }
                     }
 
                     if didSaveAPIKey && testResult == nil {
                         Label("Ready", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .font(.caption)
+                            .foregroundStyle(.green).font(.caption)
                     } else if let saveError {
                         Label(saveError, systemImage: "xmark.circle.fill")
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                            .foregroundStyle(.red).font(.caption)
                     }
                 }
 
@@ -94,47 +124,38 @@ struct APISettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
-            .creamFormRow()
-
-            Section("Models") {
-                LabeledContent("Transcription") {
-                    Text(Constants.API.whisperModel)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-
-                LabeledContent("Refinement") {
-                    Text(currentLlamaModel)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .creamFormRow()
-
-            Section("API Endpoints") {
-                LabeledContent("Base URL") {
-                    Text(Constants.API.baseURL)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .creamFormRow()
+            .padding(18)
         }
-        .formStyle(.grouped)
-        .creamFormBackground()
-        .onAppear {
-            appState.refreshAPIKeyStatus()
-            if let key = appState.keychainManager?.getAPIKey() {
-                apiKey = key
-                didSaveAPIKey = !key.isEmpty
+    }
+
+    // MARK: Models
+
+    private var modelsCard: some View {
+        SettingsCard {
+            SettingsRow("Transcription") {
+                Text(Constants.API.whisperModel)
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            RowDivider()
+            SettingsRow("Refinement") {
+                Text(currentLlamaModel)
+                    .font(.system(.body, design: .monospaced))
+                    .foregroundStyle(.secondary)
             }
         }
-        .onDisappear {
-            // Don't leave the plaintext key sitting in view state memory when
-            // the user closes Settings. The Keychain remains the source of truth.
-            apiKey = ""
-            testResult = nil
-            saveError = nil
+    }
+
+    // MARK: Endpoints
+
+    private var endpointsCard: some View {
+        SettingsCard {
+            SettingsRow("Base URL") {
+                Text(Constants.API.baseURL)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
         }
     }
 
