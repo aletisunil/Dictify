@@ -115,7 +115,7 @@ struct MainWindowView: View {
 
     private var sidebarBrand: some View {
         HStack(spacing: 10) {
-            DictifyMarkIcon(size: 28, cornerRadius: 8)
+            AppIconImage(size: 28, cornerRadius: 8)
             VStack(alignment: .leading, spacing: 0) {
                 Text("Dictify")
                     .font(.system(size: 14, weight: .semibold))
@@ -458,21 +458,53 @@ struct HomeView: View {
     }
 
     // Stats
+    private let statsColumns = [GridItem(.adaptive(minimum: 150), spacing: 14)]
+
+    @ViewBuilder
     private var statsRow: some View {
-        HStack(spacing: 14) {
-            if let stats = appState.statsStore {
-                StatCard(icon: "text.word.spacing",
-                         title: "Session words",
-                         value: "\(stats.sessionWords)",
-                         subtitle: wpmString(stats.sessionWPM) + " wpm")
-                StatCard(icon: "sum",
-                         title: "Total words",
-                         value: "\(stats.totalWords)",
-                         subtitle: wpmString(stats.totalWPM) + " wpm")
-                StatCard(icon: "clock.arrow.circlepath",
-                         title: "Transcriptions",
-                         value: "\(appState.historyStore?.records.count ?? 0)",
-                         subtitle: "recorded")
+        if let stats = appState.statsStore {
+            VStack(alignment: .leading, spacing: 10) {
+                LazyVGrid(columns: statsColumns, spacing: 14) {
+                    StatCard(icon: "text.word.spacing",
+                             title: "Session words",
+                             value: "\(stats.sessionWords)",
+                             subtitle: wpmString(stats.sessionWPM) + " wpm")
+                    StatCard(icon: "sum",
+                             title: "Total words",
+                             value: "\(stats.totalWords)",
+                             subtitle: wpmString(stats.totalWPM) + " wpm")
+                    StatCard(icon: "clock.arrow.circlepath",
+                             title: "Transcriptions",
+                             value: "\(appState.historyStore?.records.count ?? 0)",
+                             subtitle: "recorded")
+                    StatCard(icon: "flame",
+                             title: "Current streak",
+                             value: "\(stats.currentStreak)",
+                             subtitle: dayUnit(stats.currentStreak))
+                    StatCard(icon: "calendar",
+                             title: "Active days",
+                             value: "\(stats.activeDays)",
+                             subtitle: "dictated")
+                    StatCard(icon: "clock",
+                             title: "Speaking time",
+                             value: durationString(stats.totalSpeakingSeconds),
+                             subtitle: "spoken")
+                    StatCard(icon: "clock.badge",
+                             title: "Peak hour",
+                             value: hourString(stats.peakHour),
+                             subtitle: "most active")
+                    StatCard(icon: "calendar.day.timeline.left",
+                             title: "Busiest day",
+                             value: weekdayString(stats.busiestWeekday),
+                             subtitle: "favorite day")
+                }
+
+                if let saved = savedVsTypingString(stats.estimatedMinutesSavedVsTyping) {
+                    Text(saved)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
     }
@@ -480,6 +512,52 @@ struct HomeView: View {
     private func wpmString(_ value: Double?) -> String {
         guard let value else { return "—" }
         return value.formatted(.number.precision(.fractionLength(0)))
+    }
+
+    private func dayUnit(_ count: Int) -> String {
+        count == 1 ? "day" : "days"
+    }
+
+    /// "1h 23m", "23m", or "45s" — em-dash when there's nothing to show.
+    private func durationString(_ seconds: Double) -> String {
+        guard seconds > 0 else { return "—" }
+        let total = Int(seconds.rounded())
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        if h > 0 { return m > 0 ? "\(h)h \(m)m" : "\(h)h" }
+        if m > 0 { return "\(m)m" }
+        return "\(s)s"
+    }
+
+    /// 24h hour index → "11 PM"; em-dash when nil.
+    private func hourString(_ hour: Int?) -> String {
+        guard let hour else { return "—" }
+        var comps = DateComponents()
+        comps.hour = hour
+        guard let date = Calendar.current.date(from: comps) else { return "—" }
+        return date.formatted(.dateTime.hour())
+    }
+
+    /// Calendar weekday (1 = Sunday) → "Mon"; em-dash when nil.
+    private func weekdayString(_ weekday: Int?) -> String {
+        guard let weekday else { return "—" }
+        let symbols = Calendar.current.shortWeekdaySymbols
+        guard weekday >= 1, weekday <= symbols.count else { return "—" }
+        return symbols[weekday - 1]
+    }
+
+    /// Fun comparison line; nil when savings are negligible.
+    private func savedVsTypingString(_ minutes: Double) -> String? {
+        guard minutes >= 1 else { return nil }
+        let value: String
+        if minutes >= 60 {
+            let hours = minutes / 60
+            value = hours.formatted(.number.precision(.fractionLength(hours >= 10 ? 0 : 1))) + "h"
+        } else {
+            value = "\(Int(minutes.rounded()))m"
+        }
+        return "You've saved ~\(value) vs typing at 40 wpm."
     }
 
     // Recent
@@ -861,6 +939,7 @@ struct ContributionGraphView: View {
     let records: [TranscriptionRecord]
 
     private let weeks = 53
+    private let scrollEndID = "contribution-graph-end"
     private let cell: CGFloat = 11
     private let spacing: CGFloat = 3
     private let monthRowHeight: CGFloat = 15
@@ -909,10 +988,18 @@ struct ContributionGraphView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 6) {
                 weekdayColumn
-                ScrollView(.horizontal, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: headerGap) {
-                        monthLabels
-                        grid
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: headerGap) {
+                            monthLabels
+                            grid
+                        }
+                        .id(scrollEndID)
+                    }
+                    .onAppear {
+                        // Open anchored to the current month on the right edge,
+                        // not the oldest column ~52 weeks back on the left.
+                        proxy.scrollTo(scrollEndID, anchor: .trailing)
                     }
                 }
             }
@@ -1035,38 +1122,17 @@ struct ContributionGraphView: View {
 
 // MARK: - Brand Mark
 
-struct DictifyMarkIcon: View {
+/// The real app icon (matches Dock/Finder), used everywhere the brand mark
+/// appears so the sidebar and About page stay in sync.
+struct AppIconImage: View {
     var size: CGFloat = 32
     var cornerRadius: CGFloat = 7
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .fill(Color.primary.opacity(0.08))
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-            WaveformMark()
-                .stroke(Color.primary, style: StrokeStyle(lineWidth: max(1.2, size * 0.08), lineCap: .round))
-                .padding(size * 0.24)
-        }
-        .frame(width: size, height: size)
-    }
-}
-
-private struct WaveformMark: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let heights: [CGFloat] = [0.40, 0.70, 1.0, 0.55, 0.85, 0.35]
-        let count = heights.count
-        let spacing = rect.width / CGFloat(count - 1)
-        for (i, h) in heights.enumerated() {
-            let x = rect.minX + CGFloat(i) * spacing
-            let barHeight = rect.height * h
-            let y1 = rect.midY - barHeight / 2
-            let y2 = rect.midY + barHeight / 2
-            path.move(to: CGPoint(x: x, y: y1))
-            path.addLine(to: CGPoint(x: x, y: y2))
-        }
-        return path
+        Image(nsImage: NSApp.applicationIconImage)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }

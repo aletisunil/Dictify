@@ -9,16 +9,9 @@ struct AboutSettingsView: View {
         VStack(spacing: 20) {
             Spacer()
 
-            // App Icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(.blue.gradient)
-                    .frame(width: 100, height: 100)
-                Image(systemName: "waveform.circle.fill")
-                    .font(.system(size: 50))
-                    .foregroundStyle(.white)
-            }
-            .shadow(color: .blue.opacity(0.3), radius: 12, y: 4)
+            // App Icon — the real AppIcon, matching the Dock and sidebar.
+            AppIconImage(size: 100, cornerRadius: 24)
+                .shadow(color: .blue.opacity(0.3), radius: 12, y: 4)
 
             // App Name and Version
             VStack(spacing: 4) {
