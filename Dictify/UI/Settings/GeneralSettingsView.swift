@@ -42,8 +42,14 @@ struct GeneralSettingsView: View {
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(.secondary.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.primary.opacity(0.06))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                            )
                     }
 
                     Button(isRecordingShortcut ? "Cancel" : "Record") {

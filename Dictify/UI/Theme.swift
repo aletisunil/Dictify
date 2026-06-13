@@ -130,3 +130,29 @@ struct SearchField: View {
         )
     }
 }
+
+// MARK: - Secure field
+
+/// A SecureField styled to match the cream palette — a tinted capsule like
+/// `SearchField`, never the opaque white `.roundedBorder` that clashed with the
+/// warm background.
+struct CreamSecureField: View {
+    let placeholder: String
+    @Binding var text: String
+
+    var body: some View {
+        SecureField(placeholder, text: $text)
+            .textFieldStyle(.plain)
+            .font(.system(size: 13))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.primary.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.appHairline, lineWidth: 1)
+            )
+    }
+}

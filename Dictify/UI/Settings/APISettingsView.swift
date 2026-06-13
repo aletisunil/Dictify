@@ -28,8 +28,7 @@ struct APISettingsView: View {
                         .foregroundStyle(.orange)
                 }
 
-                SecureField("Enter your Groq API key", text: $apiKey)
-                    .textFieldStyle(.roundedBorder)
+                CreamSecureField(placeholder: "Enter your Groq API key", text: $apiKey)
 
                 HStack {
                     Button("Save Key") {
@@ -95,6 +94,7 @@ struct APISettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
+            .creamFormRow()
 
             Section("Models") {
                 LabeledContent("Transcription") {
@@ -109,6 +109,7 @@ struct APISettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .creamFormRow()
 
             Section("API Endpoints") {
                 LabeledContent("Base URL") {
@@ -117,9 +118,10 @@ struct APISettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .creamFormRow()
         }
         .formStyle(.grouped)
-        .padding()
+        .creamFormBackground()
         .onAppear {
             appState.refreshAPIKeyStatus()
             if let key = appState.keychainManager?.getAPIKey() {

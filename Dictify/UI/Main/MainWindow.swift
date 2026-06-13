@@ -709,6 +709,20 @@ struct HomeBanner<Actions: View>: View {
     let message: String
     @ViewBuilder let actions: () -> Actions
 
+    init(icon: String, tint: Color, title: String, message: String,
+         @ViewBuilder actions: @escaping () -> Actions) {
+        self.icon = icon
+        self.tint = tint
+        self.title = title
+        self.message = message
+        self.actions = actions
+    }
+
+    /// Message-only banner (no action buttons) — used for inline save errors.
+    init(icon: String, tint: Color, title: String, message: String) where Actions == EmptyView {
+        self.init(icon: icon, tint: tint, title: title, message: message) { EmptyView() }
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)

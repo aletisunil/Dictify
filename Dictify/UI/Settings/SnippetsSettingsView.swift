@@ -20,17 +20,14 @@ struct SnippetsSettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let error = store?.lastSaveError {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                    Text("Could not save snippets: \(error.localizedDescription)")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
-                .padding(.vertical, 6)
-                .background(Color.red.opacity(0.1))
+                HomeBanner(
+                    icon: "exclamationmark.triangle.fill",
+                    tint: .red,
+                    title: "Could not save snippets",
+                    message: error.localizedDescription
+                )
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
             }
 
             HStack {
@@ -42,22 +39,21 @@ struct SnippetsSettingsView: View {
                     Label("Add Snippet", systemImage: "plus")
                 }
             }
-            .padding()
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
 
             Divider()
 
             if filteredSnippets.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "doc.text")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
-                    Text("No snippets")
-                        .foregroundStyle(.secondary)
-                    Text("Create snippets to expand spoken cues into full text")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyStateCard(
+                    icon: searchText.isEmpty ? "doc.text" : "magnifyingglass",
+                    title: searchText.isEmpty ? "No snippets" : "No matches",
+                    subtitle: searchText.isEmpty
+                        ? "Create snippets to expand spoken cues into full text."
+                        : "Try a different search term."
+                )
+                .padding(24)
+                Spacer()
             } else {
                 List {
                     ForEach(filteredSnippets) { snippet in
