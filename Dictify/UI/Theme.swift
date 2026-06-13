@@ -32,36 +32,38 @@ extension NSColor {
             : NSColor(calibratedRed: 0.929, green: 0.906, blue: 0.851, alpha: 1.0) // #EDE7D9
     }
 
-    /// Brand accent — warm clay that complements the cream base, replacing the
-    /// cool system blue that fought the warm palette. Brightened in dark mode so
-    /// it stays legible on the near-black background.
+    /// Brand accent — warm clay that complements the cream base in light mode,
+    /// replacing the cool system blue that fought the warm palette. Dark mode
+    /// keeps the system accent so it stays true to the platform, matching the
+    /// window/card/sidebar tokens above.
     static let appAccent = NSColor(name: "appAccent") { appearance in
         appearance.isDark
-            ? NSColor(calibratedRed: 0.878, green: 0.565, blue: 0.373, alpha: 1.0) // #E0905F
+            ? .controlAccentColor
             : NSColor(calibratedRed: 0.761, green: 0.408, blue: 0.235, alpha: 1.0) // #C2683C
     }
 
-    /// Status: idle/ready — desaturated olive instead of pure system green so it
-    /// sits on the cream palette rather than punching through it.
+    /// Status: idle/ready — desaturated olive in light mode so it sits on the
+    /// cream palette; system green in dark.
     static let appReady = NSColor(name: "appReady") { appearance in
         appearance.isDark
-            ? NSColor(calibratedRed: 0.490, green: 0.690, blue: 0.408, alpha: 1.0) // #7DB068
+            ? .systemGreen
             : NSColor(calibratedRed: 0.361, green: 0.541, blue: 0.290, alpha: 1.0) // #5C8A4A
     }
 
-    /// Status: in-flight (transcribing/refining/inserting) — warm amber.
+    /// Status: in-flight (transcribing/refining/inserting) — warm amber in
+    /// light mode; system orange in dark.
     static let appWorking = NSColor(name: "appWorking") { appearance in
         appearance.isDark
-            ? NSColor(calibratedRed: 0.878, green: 0.627, blue: 0.353, alpha: 1.0) // #E0A05A
+            ? .systemOrange
             : NSColor(calibratedRed: 0.788, green: 0.502, blue: 0.227, alpha: 1.0) // #C9803A
     }
 
-    /// Status: recording/error — muted brick instead of pure system red. Used
-    /// for the status pipeline only; genuine destructive controls keep the
-    /// system red so they read as dangerous per platform convention.
+    /// Status: recording/error — muted brick in light mode; system red in dark.
+    /// Status pipeline only; genuine destructive controls keep the system red
+    /// so they read as dangerous per platform convention.
     static let appAlert = NSColor(name: "appAlert") { appearance in
         appearance.isDark
-            ? NSColor(calibratedRed: 0.878, green: 0.416, blue: 0.369, alpha: 1.0) // #E06A5E
+            ? .systemRed
             : NSColor(calibratedRed: 0.753, green: 0.278, blue: 0.235, alpha: 1.0) // #C0473C
     }
 }
