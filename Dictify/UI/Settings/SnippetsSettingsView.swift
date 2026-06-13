@@ -34,8 +34,7 @@ struct SnippetsSettingsView: View {
             }
 
             HStack {
-                TextField("Search snippets...", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
+                SearchField(placeholder: "Search snippets...", text: $searchText)
 
                 Spacer()
 
@@ -66,16 +65,17 @@ struct SnippetsSettingsView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(snippet.cue)
                                     .font(.body.weight(.medium))
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.appAccent)
                                 Text(snippet.body)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(2)
                                 Text(snippet.category)
                                     .font(.caption2)
+                                    .foregroundStyle(Color.appAccent)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
-                                    .background(.purple.opacity(0.1))
+                                    .background(Color.appAccent.opacity(0.12))
                                     .clipShape(Capsule())
                             }
 
@@ -93,10 +93,14 @@ struct SnippetsSettingsView: View {
                             .buttonStyle(.borderless)
                         }
                         .padding(.vertical, 4)
+                        .listRowBackground(Color.appCardBackground)
                     }
                 }
+                .scrollContentBackground(.hidden)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.appWindowBackground)
         .sheet(isPresented: $showingAddSheet) {
             SnippetEditor(
                 onSave: { snippet in
@@ -143,6 +147,7 @@ struct SnippetEditor: View {
 
             Form {
                 TextField("Spoken Cue (e.g., \"calendar link\")", text: $cue)
+                    .creamFormRow()
 
                 Picker("Category", selection: $category) {
                     Text("General").tag("general")
@@ -150,6 +155,7 @@ struct SnippetEditor: View {
                     Text("Email").tag("email")
                     Text("Code").tag("code")
                 }
+                .creamFormRow()
 
                 VStack(alignment: .leading) {
                     Text("Snippet Body")
@@ -157,14 +163,24 @@ struct SnippetEditor: View {
                     TextEditor(text: $snippetBody)
                         .font(.system(.body, design: .monospaced))
                         .frame(height: 100)
-                        .border(Color.secondary.opacity(0.2))
+                        .scrollContentBackground(.hidden)
+                        .padding(6)
+                        .background(Color.appCardBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.secondary.opacity(0.2))
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
+                .creamFormRow()
 
                 Text("Variables: {{date}}, {{time}}, {{clipboard}}")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .creamFormRow()
             }
             .formStyle(.grouped)
+            .creamFormBackground()
 
             HStack {
                 Button("Cancel", action: onCancel)

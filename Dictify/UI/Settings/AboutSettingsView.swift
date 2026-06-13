@@ -11,7 +11,7 @@ struct AboutSettingsView: View {
 
             // App Icon — the real AppIcon, matching the Dock and sidebar.
             AppIconImage(size: 100, cornerRadius: 24)
-                .shadow(color: .blue.opacity(0.3), radius: 12, y: 4)
+                .shadow(color: .appAccent.opacity(0.25), radius: 12, y: 4)
 
             // App Name and Version
             VStack(spacing: 4) {
@@ -58,8 +58,9 @@ struct AboutSettingsView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+        .background(Color.appWindowBackground)
     }
 
     // MARK: - Diagnostics
