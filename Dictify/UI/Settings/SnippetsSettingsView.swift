@@ -61,7 +61,7 @@ struct SnippetsSettingsView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(snippet.cue)
                                     .font(.body.weight(.medium))
-                                    .foregroundStyle(Color.appAccent)
+                                    .foregroundStyle(.primary)
                                 Text(snippet.body)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
