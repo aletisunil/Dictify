@@ -56,6 +56,9 @@ struct MainWindowView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 900, minHeight: 620)
+        // App-wide accent: clay sidebar selection, toggles, and prominent
+        // buttons instead of the cool system blue that fought the cream.
+        .tint(Color.appAccent)
     }
 
     // MARK: Sidebar
@@ -193,11 +196,14 @@ struct MainWindowView: View {
         case .general:
             GeneralSettingsView()
                 .environmentObject(appState)
+                .navigationTitle("General")
         case .api:
             APISettingsView(showMissingGroqAPIKeyWarning: showMissingGroqAPIKeyWarning)
                 .environmentObject(appState)
+                .navigationTitle("API")
         case .about:
             AboutSettingsView()
+                .navigationTitle("About")
         }
     }
 }

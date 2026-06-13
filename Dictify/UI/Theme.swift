@@ -32,6 +32,16 @@ extension NSColor {
             : NSColor(calibratedRed: 0.929, green: 0.906, blue: 0.851, alpha: 1.0) // #EDE7D9
     }
 
+    /// Brand accent — warm clay that complements the cream base in light mode,
+    /// replacing the cool system blue that fought the warm palette. Dark mode
+    /// keeps the system accent so it stays true to the platform, matching the
+    /// window/card/sidebar tokens above.
+    static let appAccent = NSColor(name: "appAccent") { appearance in
+        appearance.isDark
+            ? .controlAccentColor
+            : NSColor(calibratedRed: 0.761, green: 0.408, blue: 0.235, alpha: 1.0) // #C2683C
+    }
+
     /// Status: idle/ready — desaturated olive in light mode so it sits on the
     /// cream palette; system green in dark.
     static let appReady = NSColor(name: "appReady") { appearance in
@@ -69,10 +79,7 @@ extension Color {
     static let appWindowBackground = Color(nsColor: .appWindowBackground)
     static let appCardBackground = Color(nsColor: .appCardBackground)
     static let appSidebarBackground = Color(nsColor: .appSidebarBackground)
-    /// Brand accent — follows the system accent in both modes. (An earlier build
-    /// used a warm clay accent; reverted to system blue to match the reference
-    /// settings design.)
-    static let appAccent = Color.accentColor
+    static let appAccent = Color(nsColor: .appAccent)
     static let appReady = Color(nsColor: .appReady)
     static let appWorking = Color(nsColor: .appWorking)
     static let appAlert = Color(nsColor: .appAlert)
@@ -149,176 +156,5 @@ struct CreamSecureField: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(Color.appHairline, lineWidth: 1)
             )
-    }
-}
-
-// MARK: - Settings layout
-//
-// A card-based layout language for the Preferences pages: a page header card
-// (icon tile + title + subtitle), grouped content cards holding inline rows
-// separated by hairlines, bold section labels that sit *outside* the cards, and
-// a status pill. Pages compose these inside `SettingsScaffold`.
-
-private enum SettingsMetrics {
-    static let cardRadius: CGFloat = 16
-    static let headerRadius: CGFloat = 18
-    static let rowH: CGFloat = 18
-    static let rowV: CGFloat = 13
-    static let contentMaxWidth: CGFloat = 820
-}
-
-/// Scrollable cream page that centers and width-caps its stack of cards.
-struct SettingsScaffold<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                content()
-            }
-            .frame(maxWidth: SettingsMetrics.contentMaxWidth, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(24)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.appWindowBackground)
-    }
-}
-
-/// Page header: a grey icon tile beside the page title and a one-line subtitle.
-struct SettingsHeaderCard: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-
-    var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(white: 0.62), Color(white: 0.48)],
-                                         startPoint: .top, endPoint: .bottom))
-                    .frame(width: 60, height: 60)
-                Image(systemName: icon)
-                    .font(.system(size: 26, weight: .regular))
-                    .foregroundStyle(.white)
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 22, weight: .bold))
-                Text(subtitle)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: SettingsMetrics.headerRadius, style: .continuous)
-                .fill(Color.appCardBackground)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: SettingsMetrics.headerRadius, style: .continuous)
-                .stroke(Color.appHairline, lineWidth: 1)
-        )
-    }
-}
-
-/// A bold label that sits above a card (e.g. "Permissions"), outside its frame.
-struct SettingsSectionLabel: View {
-    let text: String
-    var body: some View {
-        Text(text)
-            .font(.system(size: 15, weight: .semibold))
-            .padding(.horizontal, 4)
-            .padding(.top, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-/// Rounded content card. Rows are stacked vertically; callers insert
-/// `RowDivider()` between them.
-struct SettingsCard<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-    var body: some View {
-        VStack(spacing: 0) { content() }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: SettingsMetrics.cardRadius, style: .continuous)
-                    .fill(Color.appCardBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: SettingsMetrics.cardRadius, style: .continuous)
-                    .stroke(Color.appHairline, lineWidth: 1)
-            )
-    }
-}
-
-/// Hairline between rows inside a `SettingsCard`, inset to clear the card edge.
-struct RowDivider: View {
-    var body: some View {
-        Rectangle()
-            .fill(Color.appHairline)
-            .frame(height: 1)
-            .padding(.horizontal, SettingsMetrics.rowH)
-    }
-}
-
-/// One row: title (+ optional subtitle) on the left, a trailing accessory on the
-/// right (toggle, picker, button, pill…).
-struct SettingsRow<Accessory: View>: View {
-    let title: String
-    var subtitle: String? = nil
-    @ViewBuilder let accessory: () -> Accessory
-
-    init(_ title: String, subtitle: String? = nil,
-         @ViewBuilder accessory: @escaping () -> Accessory) {
-        self.title = title
-        self.subtitle = subtitle
-        self.accessory = accessory
-    }
-
-    /// Row with no trailing accessory (e.g. a tappable settings row).
-    init(_ title: String, subtitle: String? = nil) where Accessory == EmptyView {
-        self.init(title, subtitle: subtitle) { EmptyView() }
-    }
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 15, weight: .semibold))
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Spacer(minLength: 12)
-            accessory()
-        }
-        .padding(.horizontal, SettingsMetrics.rowH)
-        .padding(.vertical, SettingsMetrics.rowV)
-    }
-}
-
-/// A compact status capsule: a coloured dot + label on a neutral pill.
-struct StatusPill: View {
-    let text: String
-    let tint: Color
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(tint)
-                .frame(width: 7, height: 7)
-            Text(text)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.primary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Capsule().fill(Color.primary.opacity(0.06)))
-        .overlay(Capsule().stroke(Color.appHairline, lineWidth: 1))
     }
 }
