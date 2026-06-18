@@ -17,23 +17,19 @@ struct DictionarySettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let error = store?.lastSaveError {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                    Text("Could not save dictionary: \(error.localizedDescription)")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
-                .padding(.vertical, 6)
-                .background(Color.red.opacity(0.1))
+                HomeBanner(
+                    icon: "exclamationmark.triangle.fill",
+                    tint: .appAlert,
+                    title: "Could not save dictionary",
+                    message: error.localizedDescription
+                )
+                .padding(.horizontal, 24)
+                .padding(.top, 16)
             }
 
             // Toolbar
             HStack {
-                TextField("Search terms...", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
+                SearchField(placeholder: "Search terms...", text: $searchText)
 
                 Spacer()
 
@@ -41,23 +37,22 @@ struct DictionarySettingsView: View {
                     Label("Add Term", systemImage: "plus")
                 }
             }
-            .padding()
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
 
             Divider()
 
             // List
             if filteredEntries.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "book.closed")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
-                    Text("No dictionary terms")
-                        .foregroundStyle(.secondary)
-                    Text("Add custom terms to improve transcription accuracy")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyStateCard(
+                    icon: searchText.isEmpty ? "book.closed" : "magnifyingglass",
+                    title: searchText.isEmpty ? "No dictionary terms" : "No matches",
+                    subtitle: searchText.isEmpty
+                        ? "Add custom terms to improve transcription accuracy."
+                        : "Try a different search term."
+                )
+                .padding(24)
+                Spacer()
             } else {
                 List {
                     ForEach(filteredEntries) { entry in
@@ -68,9 +63,10 @@ struct DictionarySettingsView: View {
                                 HStack(spacing: 8) {
                                     Text(entry.category)
                                         .font(.caption)
+                                        .foregroundStyle(Color.appAccent)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 2)
-                                        .background(.blue.opacity(0.1))
+                                        .background(Color.appAccent.opacity(0.12))
                                         .clipShape(Capsule())
                                     if let hint = entry.phoneticHint {
                                         Text("[\(hint)]")
@@ -94,10 +90,14 @@ struct DictionarySettingsView: View {
                             .buttonStyle(.borderless)
                         }
                         .padding(.vertical, 4)
+                        .listRowBackground(Color.appCardBackground)
                     }
                 }
+                .scrollContentBackground(.hidden)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.appWindowBackground)
         .sheet(isPresented: $showingAddSheet) {
             DictionaryEntryEditor(
                 onSave: { entry in
@@ -144,15 +144,19 @@ struct DictionaryEntryEditor: View {
 
             Form {
                 TextField("Term", text: $term)
+                    .creamFormRow()
                 Picker("Category", selection: $category) {
                     Text("General").tag("general")
                     Text("Technical").tag("technical")
                     Text("Names").tag("names")
                     Text("Brand").tag("brand")
                 }
+                .creamFormRow()
                 TextField("Phonetic Hint (optional)", text: $phoneticHint)
+                    .creamFormRow()
             }
             .formStyle(.grouped)
+            .creamFormBackground()
 
             HStack {
                 Button("Cancel", action: onCancel)

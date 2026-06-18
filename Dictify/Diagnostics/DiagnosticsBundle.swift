@@ -134,14 +134,15 @@ enum DiagnosticsBundle {
         return formatter
     }()
 
-    private static let isoFormatter = ISO8601DateFormatter()
-
     private static func lineTimestamp(_ date: Date) -> String {
         lineFormatter.string(from: date)
     }
 
+    // ISO8601DateFormatter is not thread-safe; build() is async and may run off
+    // the main actor, so allocate per call rather than sharing mutable state.
+    // headerTimestamp runs once per bundle, so the allocation cost is negligible.
     private static func headerTimestamp(_ date: Date) -> String {
-        isoFormatter.string(from: date)
+        ISO8601DateFormatter().string(from: date)
     }
 
     private static func fileTimestamp(_ date: Date) -> String {

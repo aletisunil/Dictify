@@ -56,6 +56,9 @@ struct MainWindowView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 900, minHeight: 620)
+        // App-wide accent: clay sidebar selection, toggles, and prominent
+        // buttons instead of the cool system blue that fought the cream.
+        .tint(Color.appAccent)
     }
 
     // MARK: Sidebar
@@ -85,12 +88,14 @@ struct MainWindowView: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
         .safeAreaInset(edge: .top, spacing: 0) {
             sidebarBrand
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             sidebarStatusFooter
         }
+        .background(Color.appSidebarBackground)
     }
 
     private func sidebarRow(_ tab: MainTab) -> some View {
@@ -149,10 +154,10 @@ struct MainWindowView: View {
 
     private var statusTint: Color {
         switch appState.pipelineState {
-        case .idle: return appState.hasAPIKeyConfigured ? .green : .red
-        case .recording: return .red
-        case .transcribing, .refining, .inserting: return .orange
-        case .error: return .red
+        case .idle: return appState.hasAPIKeyConfigured ? .appReady : .appAlert
+        case .recording: return .appAlert
+        case .transcribing, .refining, .inserting: return .appWorking
+        case .error: return .appAlert
         }
     }
 
@@ -239,7 +244,7 @@ struct HomeView: View {
             .padding(28)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color.appWindowBackground)
         .onAppear { permissionManager.refreshAll() }
     }
 
@@ -272,19 +277,19 @@ struct HomeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(nsColor: .controlBackgroundColor))
+                .fill(Color.appCardBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                .stroke(Color.appHairline, lineWidth: 1)
         )
     }
 
     private var heroIconTint: Color {
         switch appState.pipelineState {
-        case .recording: return .red
-        case .transcribing, .refining, .inserting: return .orange
-        case .error: return .red
+        case .recording: return .appAlert
+        case .transcribing, .refining, .inserting: return .appWorking
+        case .error: return .appAlert
         default: return .primary
         }
     }
@@ -317,7 +322,7 @@ struct HomeView: View {
         switch appState.pipelineState {
         case .recording: return "Release to transcribe. Tap the key briefly to cancel."
         case .transcribing: return "Sending audio to Whisper."
-        case .refining: return "Polishing text with Llama."
+        case .refining: return "Polishing text with GPT-OSS."
         case .inserting: return "Pasting into the active app."
         case .error: return "Check the status and try again."
         default:
@@ -368,7 +373,7 @@ struct HomeView: View {
         let axMissing = !permissionManager.accessibilityGranted
         return HomeBanner(
             icon: "exclamationmark.triangle.fill",
-            tint: .orange,
+            tint: Color.appAccent,
             title: "Permission needed",
             message: "Re-grant \(missingLabel(mic: micMissing, ax: axMissing)) so Dictify can keep working."
         ) {
@@ -447,7 +452,7 @@ struct HomeView: View {
     private var apiKeyBanner: some View {
         HomeBanner(
             icon: "key.fill",
-            tint: .blue,
+            tint: .appAccent,
             title: "Groq API key required",
             message: "Dictify needs a Groq API key to transcribe. Your key is stored in Apple Keychain."
         ) {
@@ -571,7 +576,7 @@ struct HomeView: View {
                     Button("View all") { onJumpToHistory() }
                         .buttonStyle(.plain)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.appAccent)
                 }
             }
 
@@ -608,20 +613,7 @@ struct HistoryView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
-                    TextField("Search transcriptions", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.primary.opacity(0.06))
-                )
+                SearchField(placeholder: "Search transcriptions", text: $searchText)
 
                 Spacer()
 
@@ -663,7 +655,7 @@ struct HistoryView: View {
         }
         .navigationTitle("History")
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color.appWindowBackground)
         .confirmationDialog("Clear all transcription history?", isPresented: $confirmClear, titleVisibility: .visible) {
             Button("Clear All", role: .destructive) { appState.historyStore?.clear() }
             Button("Cancel", role: .cancel) {}
@@ -704,11 +696,11 @@ struct StatCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .controlBackgroundColor))
+                .fill(Color.appCardBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                .stroke(Color.appHairline, lineWidth: 1)
         )
     }
 }
@@ -719,6 +711,20 @@ struct HomeBanner<Actions: View>: View {
     let title: String
     let message: String
     @ViewBuilder let actions: () -> Actions
+
+    init(icon: String, tint: Color, title: String, message: String,
+         @ViewBuilder actions: @escaping () -> Actions) {
+        self.icon = icon
+        self.tint = tint
+        self.title = title
+        self.message = message
+        self.actions = actions
+    }
+
+    /// Message-only banner (no action buttons) — used for inline save errors.
+    init(icon: String, tint: Color, title: String, message: String) where Actions == EmptyView {
+        self.init(icon: icon, tint: tint, title: title, message: message) { EmptyView() }
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -871,11 +877,11 @@ struct TranscriptionCardRow: View {
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(nsColor: .controlBackgroundColor))
+                .fill(Color.appCardBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                .stroke(Color.appHairline, lineWidth: 1)
         )
     }
 
@@ -1008,11 +1014,11 @@ struct ContributionGraphView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(nsColor: .controlBackgroundColor))
+                .fill(Color.appCardBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                .stroke(Color.appHairline, lineWidth: 1)
         )
     }
 
@@ -1106,10 +1112,10 @@ struct ContributionGraphView: View {
     private func tint(_ count: Int) -> Color {
         switch count {
         case 0: return Color.primary.opacity(0.06)
-        case 1...2: return Color.green.opacity(0.35)
-        case 3...5: return Color.green.opacity(0.55)
-        case 6...9: return Color.green.opacity(0.78)
-        default: return Color.green
+        case 1...2: return Color.appReady.opacity(0.35)
+        case 3...5: return Color.appReady.opacity(0.55)
+        case 6...9: return Color.appReady.opacity(0.78)
+        default: return Color.appReady
         }
     }
 

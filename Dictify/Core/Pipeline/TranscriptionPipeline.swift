@@ -35,7 +35,7 @@ actor TranscriptionPipeline {
     private let audioEngine: AudioEngine
     private let groqClient: GroqClient
     private let whisperService: WhisperService
-    private let llamaService: LlamaService
+    private let gptOssService: GPTOssService
     private let accessibilityInserter: AccessibilityInserter
     private let clipboardPaster: ClipboardPaster
     private let dictionaryStore: DictionaryStore
@@ -58,7 +58,7 @@ actor TranscriptionPipeline {
         self.audioEngine = AudioEngine()
         self.groqClient = GroqClient(keychainManager: keychainManager)
         self.whisperService = WhisperService(client: groqClient)
-        self.llamaService = LlamaService(client: groqClient)
+        self.gptOssService = GPTOssService(client: groqClient)
         self.accessibilityInserter = AccessibilityInserter()
         self.clipboardPaster = ClipboardPaster()
         self.dictionaryStore = dictionaryStore
@@ -234,8 +234,8 @@ actor TranscriptionPipeline {
                 try Task.checkCancellation()
                 let context = await MainActor.run { snippetStore.snippetContext }
                 let speedMode = await MainActor.run { settings.refinementSpeedMode }
-                let model = Self.resolveLlamaModel(from: speedMode)
-                finalText = try await llamaService.refine(
+                let model = Self.resolveGPTOssModel(from: speedMode)
+                finalText = try await gptOssService.refine(
                     rawTranscript: rawTranscript,
                     snippetContext: context,
                     model: model
@@ -409,16 +409,16 @@ actor TranscriptionPipeline {
     }
 
     /// Maps the user-facing speed mode to the Groq model name.
-    private static func resolveLlamaModel(from mode: String) -> String {
+    private static func resolveGPTOssModel(from mode: String) -> String {
         switch mode {
-        case "fast": return Constants.API.llamaModelFast
-        default: return Constants.API.llamaModelQuality
+        case "fast": return Constants.API.gptOssModelFast
+        default: return Constants.API.gptOssModelQuality
         }
     }
 
     /// Refinement is only useful when there are fillers, self-corrections, or
     /// long sentences to punctuate. For tiny commands, Whisper's raw output is
-    /// already fine — skipping saves the entire Llama round-trip.
+    /// already fine — skipping saves the entire GPT-OSS round-trip.
     private static func shouldSkipRefinement(rawTranscript: String) -> Bool {
         let trimmed = rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         let wordCount = trimmed.split { $0.isWhitespace }.count
@@ -429,7 +429,7 @@ actor TranscriptionPipeline {
         for marker in fillerMarkers where lower.contains(marker) {
             return false
         }
-        // No dictation-command words → nothing for Llama to convert.
+        // No dictation-command words → nothing for GPT-OSS to convert.
         let commands = ["comma", "period", "question mark", "exclamation point", "new line", "new paragraph"]
         for c in commands where lower.contains(c) {
             return false

@@ -54,7 +54,7 @@ struct IndicatorView: View {
                 .frame(width: 12, height: 12)
         case .error:
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.appAlert)
                 .font(.system(size: 12))
         case .idle:
             EmptyView()

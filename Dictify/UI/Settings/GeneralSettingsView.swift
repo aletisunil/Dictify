@@ -18,6 +18,7 @@ struct GeneralSettingsView: View {
     @AppStorage("tapHoldThreshold") private var tapHoldThreshold: Double = 0.2
     @AppStorage("showInDock") private var showInDock: Bool = true
     @AppStorage("selectedInputDeviceUID") private var selectedInputDeviceUID: String = ""
+    @AppStorage(Constants.UI.appearancePreferenceKey) private var appearancePreference: String = AppearancePreference.system.rawValue
 
     /// Human-readable name of the current selection, shown on the collapsed menu.
     @State private var selectedDisplayName: String = "System Default"
@@ -31,18 +32,24 @@ struct GeneralSettingsView: View {
                     if isRecordingShortcut {
                         Text("Press a modifier key...")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.appAccent)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(.blue.opacity(0.1))
+                            .background(Color.appAccent.opacity(0.12))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                     } else {
                         Text(displayName(for: activationKey))
                             .font(.system(size: 12, weight: .medium, design: .rounded))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(.secondary.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.primary.opacity(0.06))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                            )
                     }
 
                     Button(isRecordingShortcut ? "Cancel" : "Record") {
@@ -67,13 +74,13 @@ struct GeneralSettingsView: View {
                 if let warning = shortcutWarning(for: activationKey) {
                     Label(warning, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
                 }
 
                 if middleMouseEnabled, let warning = shortcutWarning(for: KeyMonitor.middleMouseKey) {
                     Label(warning, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
                 }
 
                 HStack {
@@ -88,6 +95,7 @@ struct GeneralSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .creamFormRow()
 
             Section("Microphone") {
                 HStack {
@@ -118,6 +126,7 @@ struct GeneralSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .creamFormRow()
 
             Section("Transcription") {
                 Toggle("AI Text Refinement", isOn: $refinementEnabled)
@@ -139,11 +148,34 @@ struct GeneralSettingsView: View {
                 .disabled(!refinementEnabled)
 
                 Text(refinementSpeedMode == "fast"
-                     ? "Fast uses llama-3.1-8b-instant — ~3-5× faster, slightly less polish."
-                     : "Quality uses llama-3.3-70b-versatile — best cleanup, ~500-900ms per utterance.")
+                     ? "Fast uses GPT-OSS 20B — quicker, slightly less polish."
+                     : "Quality uses GPT-OSS 120B — best cleanup.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .creamFormRow()
+
+            Section("Appearance") {
+                HStack {
+                    Text("Appearance")
+                    Spacer()
+                    Picker("", selection: $appearancePreference) {
+                        Text("System").tag(AppearancePreference.system.rawValue)
+                        Text("Light").tag(AppearancePreference.light.rawValue)
+                        Text("Dark").tag(AppearancePreference.dark.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                    .onChange(of: appearancePreference) { _, newValue in
+                        AppDelegate.shared?.applyAppearance(newValue)
+                    }
+                }
+                Text("\"System\" follows your macOS setting. Light mode uses Dictify's cream palette; dark mode keeps system colors.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .creamFormRow()
 
             Section("System") {
                 Toggle("Launch at Login", isOn: $launchAtLogin)
@@ -163,6 +195,7 @@ struct GeneralSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .creamFormRow()
 
             Section("Permissions") {
                 HStack {
@@ -188,6 +221,7 @@ struct GeneralSettingsView: View {
                 }
                 .controlSize(.small)
             }
+            .creamFormRow()
 
             Section("Onboarding") {
                 HStack {
@@ -199,8 +233,10 @@ struct GeneralSettingsView: View {
                     .controlSize(.small)
                 }
             }
+            .creamFormRow()
         }
         .formStyle(.grouped)
+        .creamFormBackground()
         .onAppear {
             migrateLegacyMiddleMouseSelection()
             permissionManager.checkAll()
@@ -218,11 +254,11 @@ struct GeneralSettingsView: View {
         if granted {
             Label("Granted", systemImage: "checkmark.circle.fill")
                 .font(.caption)
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.appReady)
         } else {
             Label("Not Granted", systemImage: "xmark.circle.fill")
                 .font(.caption)
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.appAlert)
         }
     }
 
