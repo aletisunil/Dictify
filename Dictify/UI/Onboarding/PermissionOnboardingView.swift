@@ -410,7 +410,7 @@ struct PermissionOnboardingView: View {
 
             Image(systemName: "key.fill")
                 .font(.system(size: 36))
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.appAccent)
 
             Text("Groq API Key")
                 .font(.system(size: 22, weight: .bold))
@@ -711,7 +711,7 @@ struct PermissionOnboardingView: View {
             if keychainManager?.hasStoredAPIKeyHint != true {
                 HStack(spacing: 4) {
                     Image(systemName: "info.circle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
                     Text("Configure your Groq API key from the menu bar to start transcribing.")
                         .foregroundStyle(.secondary)
                 }

@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         Log.ui.notice("Dictify launched — v\(version, privacy: .public) (build \(build, privacy: .public)) on \(ProcessInfo.processInfo.operatingSystemVersionString, privacy: .public)")
         ensureAppSupportDirectory()
+        applyAppearance(UserDefaults.standard.string(forKey: Constants.UI.appearancePreferenceKey) ?? AppearancePreference.system.rawValue)
         applyDockVisibility(showInDock: appState.settings.showInDock)
 
         permissionManager = PermissionManager()
@@ -166,6 +167,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         poll()
     }
 
+    /// Forces the app-wide appearance. "system" follows macOS; "light"/"dark"
+    /// pin the aqua/darkAqua appearance regardless of the system setting. The
+    /// dynamic theme NSColors react automatically once NSApp.appearance changes.
+    @MainActor
+    func applyAppearance(_ preference: String) {
+        NSApp.appearance = (AppearancePreference(rawValue: preference) ?? .system).nsAppearance
+    }
+
     @MainActor
     func applyDockVisibility(showInDock: Bool) {
         let desired: NSApplication.ActivationPolicy = showInDock ? .regular : .accessory
@@ -189,6 +198,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     private func activateApp() {
         NSRunningApplication.current.activate()
+    }
+
+    /// Reliably brings a window to the foreground. `ignoringOtherApps: true`
+    /// forces app activation even when another app is frontmost, and
+    /// `orderFrontRegardless()` raises the window even before activation lands —
+    /// needed because cooperative activation (and the `.accessory` policy) can
+    /// otherwise leave the window opening behind the active app.
+    @MainActor
+    private func bringToFront(_ window: NSWindow) {
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -240,8 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let window = mainWindow {
             window.contentView = NSHostingView(rootView: rootView)
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate()
+            bringToFront(window)
             return
         }
 
@@ -254,14 +274,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "Dictify"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
+        window.backgroundColor = .appWindowBackground
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 900, height: 620)
         window.center()
         window.contentView = NSHostingView(rootView: rootView)
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate()
         mainWindow = window
+        bringToFront(window)
     }
 
     /// Legacy alias — some call sites still ask to open "Settings".
@@ -292,8 +312,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         permissionManager.checkAll()
         if let window = onboardingWindow {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate()
+            bringToFront(window)
             return
         }
 
@@ -322,9 +341,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         let hostingView = FirstMouseHostingView(rootView: onboardingView)
         window.contentView = hostingView
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate()
         onboardingWindow = window
+        bringToFront(window)
     }
 
     @MainActor

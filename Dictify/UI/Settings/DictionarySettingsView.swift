@@ -19,7 +19,7 @@ struct DictionarySettingsView: View {
             if let error = store?.lastSaveError {
                 HomeBanner(
                     icon: "exclamationmark.triangle.fill",
-                    tint: .red,
+                    tint: .appAlert,
                     title: "Could not save dictionary",
                     message: error.localizedDescription
                 )

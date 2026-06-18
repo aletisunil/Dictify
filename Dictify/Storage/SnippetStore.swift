@@ -10,7 +10,7 @@ final class SnippetStore: ObservableObject {
         load()
     }
 
-    /// Snippet context for the Llama refinement prompt. Truncated to a rough
+    /// Snippet context for the GPT-OSS refinement prompt. Truncated to a rough
     /// token budget (recency-sorted: most recently created survives).
     var snippetContext: String {
         snippetContext(maxTokens: Constants.API.snippetContextMaxTokens)

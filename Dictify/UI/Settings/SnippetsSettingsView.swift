@@ -22,7 +22,7 @@ struct SnippetsSettingsView: View {
             if let error = store?.lastSaveError {
                 HomeBanner(
                     icon: "exclamationmark.triangle.fill",
-                    tint: .red,
+                    tint: .appAlert,
                     title: "Could not save snippets",
                     message: error.localizedDescription
                 )

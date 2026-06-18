@@ -33,7 +33,7 @@ struct AboutSettingsView: View {
                 Text("Powered by")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
-                Text("Groq — Whisper + Llama")
+                Text("Groq — Whisper + GPT-OSS")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

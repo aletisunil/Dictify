@@ -15,7 +15,7 @@
 		A10000006 /* AudioLevelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000006 /* AudioLevelProvider.swift */; };
 		A10000007 /* GroqClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000007 /* GroqClient.swift */; };
 		A10000008 /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000008 /* WhisperService.swift */; };
-		A10000009 /* LlamaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000009 /* LlamaService.swift */; };
+		A10000009 /* GPTOssService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000009 /* GPTOssService.swift */; };
 		A10000010 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000010 /* APIError.swift */; };
 		A10000011 /* AccessibilityInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000011 /* AccessibilityInserter.swift */; };
 		A10000012 /* ClipboardPaster.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000012 /* ClipboardPaster.swift */; };
@@ -53,6 +53,7 @@
 		A10000060 /* LogCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000060 /* LogCollector.swift */; };
 		A10000061 /* LogRedactor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000061 /* LogRedactor.swift */; };
 		A10000062 /* DiagnosticsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000062 /* DiagnosticsBundle.swift */; };
+		A10000070 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000070 /* Theme.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -65,7 +66,7 @@
 		B10000006 /* AudioLevelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioLevelProvider.swift; sourceTree = "<group>"; };
 		B10000007 /* GroqClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqClient.swift; sourceTree = "<group>"; };
 		B10000008 /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
-		B10000009 /* LlamaService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaService.swift; sourceTree = "<group>"; };
+		B10000009 /* GPTOssService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPTOssService.swift; sourceTree = "<group>"; };
 		B10000010 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
 		B10000011 /* AccessibilityInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityInserter.swift; sourceTree = "<group>"; };
 		B10000012 /* ClipboardPaster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPaster.swift; sourceTree = "<group>"; };
@@ -105,6 +106,7 @@
 		B10000060 /* LogCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogCollector.swift; sourceTree = "<group>"; };
 		B10000061 /* LogRedactor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogRedactor.swift; sourceTree = "<group>"; };
 		B10000062 /* DiagnosticsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsBundle.swift; sourceTree = "<group>"; };
+		B10000070 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -197,7 +199,7 @@
 			children = (
 				B10000007 /* GroqClient.swift */,
 				B10000008 /* WhisperService.swift */,
-				B10000009 /* LlamaService.swift */,
+				B10000009 /* GPTOssService.swift */,
 				B10000010 /* APIError.swift */,
 			);
 			path = API;
@@ -247,6 +249,7 @@
 		D10000012 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				B10000070 /* Theme.swift */,
 				D10000050 /* Main */,
 				D10000013 /* MenuBar */,
 				D10000014 /* FloatingIndicator */,
@@ -419,7 +422,7 @@
 				A10000006 /* AudioLevelProvider.swift in Sources */,
 				A10000007 /* GroqClient.swift in Sources */,
 				A10000008 /* WhisperService.swift in Sources */,
-				A10000009 /* LlamaService.swift in Sources */,
+				A10000009 /* GPTOssService.swift in Sources */,
 				A10000010 /* APIError.swift in Sources */,
 				A10000011 /* AccessibilityInserter.swift in Sources */,
 				A10000012 /* ClipboardPaster.swift in Sources */,
@@ -435,6 +438,7 @@
 				A10000022 /* KeychainManager.swift in Sources */,
 				A10000025 /* IndicatorWindow.swift in Sources */,
 				A10000050 /* MainWindow.swift in Sources */,
+				A10000070 /* Theme.swift in Sources */,
 				A10000026 /* IndicatorView.swift in Sources */,
 				A10000027 /* WaveformView.swift in Sources */,
 				A10000028 /* SettingsView.swift in Sources */,
@@ -591,7 +595,7 @@
 				CODE_SIGN_ENTITLEMENTS = Dictify/Dictify.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -601,7 +605,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.6;
+				MARKETING_VERSION = 1.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app;
 				PRODUCT_NAME = Dictify;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -618,7 +622,7 @@
 				CODE_SIGN_ENTITLEMENTS = Dictify/Dictify.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 7;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -628,7 +632,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.6;
+				MARKETING_VERSION = 1.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app;
 				PRODUCT_NAME = Dictify;
 				SWIFT_EMIT_LOC_STRINGS = YES;

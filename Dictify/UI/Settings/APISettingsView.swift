@@ -10,8 +10,8 @@ struct APISettingsView: View {
     @State private var didSaveAPIKey = false
     @State private var saveError: String?
 
-    private var currentLlamaModel: String {
-        refinementSpeedMode == "fast" ? Constants.API.llamaModelFast : Constants.API.llamaModelQuality
+    private var currentGPTOssModel: String {
+        refinementSpeedMode == "fast" ? Constants.API.gptOssModelFast : Constants.API.gptOssModelQuality
     }
 
     enum TestResult {
@@ -25,7 +25,7 @@ struct APISettingsView: View {
                 if shouldShowMissingKeyWarning {
                     Label("Groq API key is required before dictation can transcribe.", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
                 }
 
                 CreamSecureField(placeholder: "Enter your Groq API key", text: $apiKey)
@@ -62,22 +62,22 @@ struct APISettingsView: View {
                         switch result {
                         case .success:
                             Label("Connected", systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(Color.appReady)
                                 .font(.caption)
                         case .failure(let msg):
                             Label(msg, systemImage: "xmark.circle.fill")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Color.appAlert)
                                 .font(.caption)
                         }
                     }
 
                     if didSaveAPIKey && testResult == nil {
                         Label("Ready", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
+                            .foregroundStyle(Color.appReady)
                             .font(.caption)
                     } else if let saveError {
                         Label(saveError, systemImage: "xmark.circle.fill")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color.appAlert)
                             .font(.caption)
                     }
                 }
@@ -88,7 +88,7 @@ struct APISettingsView: View {
 
                 HStack(spacing: 4) {
                     Image(systemName: "lock.shield.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.appReady)
                     Text("Your API key is stored securely in Apple Keychain and never leaves your Mac.")
                 }
                 .font(.caption)
@@ -104,7 +104,7 @@ struct APISettingsView: View {
                 }
 
                 LabeledContent("Refinement") {
-                    Text(currentLlamaModel)
+                    Text(currentGPTOssModel)
                         .font(.system(.body, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -166,7 +166,7 @@ struct APISettingsView: View {
             }
         }
 
-        let modelForTest = currentLlamaModel
+        let modelForTest = currentGPTOssModel
         Task {
             do {
                 let client = GroqClient(keychainManager: km)

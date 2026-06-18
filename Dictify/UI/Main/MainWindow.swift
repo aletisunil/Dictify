@@ -322,7 +322,7 @@ struct HomeView: View {
         switch appState.pipelineState {
         case .recording: return "Release to transcribe. Tap the key briefly to cancel."
         case .transcribing: return "Sending audio to Whisper."
-        case .refining: return "Polishing text with Llama."
+        case .refining: return "Polishing text with GPT-OSS."
         case .inserting: return "Pasting into the active app."
         case .error: return "Check the status and try again."
         default:
@@ -373,7 +373,7 @@ struct HomeView: View {
         let axMissing = !permissionManager.accessibilityGranted
         return HomeBanner(
             icon: "exclamationmark.triangle.fill",
-            tint: .orange,
+            tint: Color.appAccent,
             title: "Permission needed",
             message: "Re-grant \(missingLabel(mic: micMissing, ax: axMissing)) so Dictify can keep working."
         ) {

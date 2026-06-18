@@ -12,7 +12,7 @@ extension NSColor {
     static let appWindowBackground = NSColor(name: "appWindowBackground") { appearance in
         appearance.isDark
             ? .windowBackgroundColor
-            : NSColor(calibratedRed: 0.957, green: 0.933, blue: 0.878, alpha: 1.0) // #F4EEE0
+            : NSColor(calibratedRed: 0.961, green: 0.925, blue: 0.843, alpha: 1.0) // #F5ECD7
     }
 
     /// Card / control background — a lighter cream that lifts off the window in
@@ -21,7 +21,7 @@ extension NSColor {
     static let appCardBackground = NSColor(name: "appCardBackground") { appearance in
         appearance.isDark
             ? .controlBackgroundColor
-            : NSColor(calibratedRed: 1.0, green: 0.992, blue: 0.973, alpha: 1.0) // #FFFDF8
+            : NSColor(calibratedRed: 1.0, green: 0.984, blue: 0.945, alpha: 1.0) // #FFFBF1
     }
 
     /// Sidebar background — a darker cream step below the window in light mode;
@@ -29,17 +29,15 @@ extension NSColor {
     static let appSidebarBackground = NSColor(name: "appSidebarBackground") { appearance in
         appearance.isDark
             ? .windowBackgroundColor
-            : NSColor(calibratedRed: 0.929, green: 0.906, blue: 0.851, alpha: 1.0) // #EDE7D9
+            : NSColor(calibratedRed: 0.933, green: 0.898, blue: 0.816, alpha: 1.0) // #EEE5D0
     }
 
-    /// Brand accent — warm clay that complements the cream base in light mode,
-    /// replacing the cool system blue that fought the warm palette. Dark mode
-    /// keeps the system accent so it stays true to the platform, matching the
-    /// window/card/sidebar tokens above.
-    static let appAccent = NSColor(name: "appAccent") { appearance in
-        appearance.isDark
-            ? .controlAccentColor
-            : NSColor(calibratedRed: 0.761, green: 0.408, blue: 0.235, alpha: 1.0) // #C2683C
+    /// Brand accent — the system accent (blue by default) in both light and dark
+    /// mode, so tinted controls match the blue sidebar selection. Only the
+    /// window/card/sidebar backgrounds carry the warm cream palette in light mode;
+    /// the accent stays the platform accent rather than a warm clay.
+    static let appAccent = NSColor(name: "appAccent") { _ in
+        .controlAccentColor
     }
 
     /// Status: idle/ready — desaturated olive in light mode so it sits on the
@@ -72,6 +70,24 @@ extension NSAppearance {
     /// True when the effective appearance is one of the dark variants.
     var isDark: Bool {
         bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+    }
+}
+
+// MARK: - Appearance preference
+
+/// The user's appearance choice, persisted as a raw string under
+/// `Constants.UI.appearancePreferenceKey`. Centralises the three valid values so
+/// the Picker, the launch read, and `applyAppearance` can't drift out of sync.
+enum AppearancePreference: String, CaseIterable {
+    case system, light, dark
+
+    /// The `NSApp.appearance` to pin. `nil` follows the macOS system setting.
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: return nil
+        case .light: return NSAppearance(named: .aqua)
+        case .dark: return NSAppearance(named: .darkAqua)
+        }
     }
 }
 

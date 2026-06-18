@@ -2,7 +2,7 @@
 
 Hold `fn`, speak, get polished text anywhere on macOS.
 
-Dictify is a native macOS app that turns speech into clean, punctuated text and inserts it directly into whatever app you're focused on. It uses Groq Whisper for transcription and Groq Llama to strip fillers, resolve backtracks, and auto-punctuate on the fly.
+Dictify is a native macOS app that turns speech into clean, punctuated text and inserts it directly into whatever app you're focused on. It uses Groq Whisper for transcription and Groq GPT-OSS to strip fillers, resolve backtracks, and auto-punctuate on the fly.
 
 ![Dictify](screenshots/Home.png)
 
@@ -17,7 +17,7 @@ Hold `fn` (or any shortcut you prefer) to record. Release to transcribe and inse
 
 ### AI refinement, your choice of speed
 
-Groq Llama cleans up what you actually said: removes "um" / "uh" / "like", resolves self-corrections ("meet at 2, actually 3" → "meet at 3"), and adds punctuation. Pick **Quality** (`llama-3.3-70b-versatile`, best cleanup) or **Fast** (`llama-3.1-8b-instant`, lower latency) per your preference.
+Groq GPT-OSS cleans up what you actually said: removes "um" / "uh" / "like", resolves self-corrections ("meet at 2, actually 3" → "meet at 3"), and adds punctuation. Pick **Quality** (`openai/gpt-oss-120b`, best cleanup) or **Fast** (`openai/gpt-oss-20b`, lower latency) per your preference.
 
 ![General settings](screenshots/General.png)
 

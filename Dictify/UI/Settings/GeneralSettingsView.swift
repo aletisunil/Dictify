@@ -18,7 +18,7 @@ struct GeneralSettingsView: View {
     @AppStorage("tapHoldThreshold") private var tapHoldThreshold: Double = 0.2
     @AppStorage("showInDock") private var showInDock: Bool = true
     @AppStorage("selectedInputDeviceUID") private var selectedInputDeviceUID: String = ""
-    @AppStorage("appearancePreference") private var appearancePreference: String = "system"
+    @AppStorage(Constants.UI.appearancePreferenceKey) private var appearancePreference: String = AppearancePreference.system.rawValue
 
     /// Human-readable name of the current selection, shown on the collapsed menu.
     @State private var selectedDisplayName: String = "System Default"
@@ -74,13 +74,13 @@ struct GeneralSettingsView: View {
                 if let warning = shortcutWarning(for: activationKey) {
                     Label(warning, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
                 }
 
                 if middleMouseEnabled, let warning = shortcutWarning(for: KeyMonitor.middleMouseKey) {
                     Label(warning, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.secondary)
                 }
 
                 HStack {
@@ -148,8 +148,8 @@ struct GeneralSettingsView: View {
                 .disabled(!refinementEnabled)
 
                 Text(refinementSpeedMode == "fast"
-                     ? "Fast uses llama-3.1-8b-instant — ~3-5× faster, slightly less polish."
-                     : "Quality uses llama-3.3-70b-versatile — best cleanup, ~500-900ms per utterance.")
+                     ? "Fast uses GPT-OSS 20B — quicker, slightly less polish."
+                     : "Quality uses GPT-OSS 120B — best cleanup.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -160,9 +160,9 @@ struct GeneralSettingsView: View {
                     Text("Appearance")
                     Spacer()
                     Picker("", selection: $appearancePreference) {
-                        Text("System").tag("system")
-                        Text("Light").tag("light")
-                        Text("Dark").tag("dark")
+                        Text("System").tag(AppearancePreference.system.rawValue)
+                        Text("Light").tag(AppearancePreference.light.rawValue)
+                        Text("Dark").tag(AppearancePreference.dark.rawValue)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -254,11 +254,11 @@ struct GeneralSettingsView: View {
         if granted {
             Label("Granted", systemImage: "checkmark.circle.fill")
                 .font(.caption)
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.appReady)
         } else {
             Label("Not Granted", systemImage: "xmark.circle.fill")
                 .font(.caption)
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.appAlert)
         }
     }
 

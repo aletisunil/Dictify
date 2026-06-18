@@ -49,7 +49,7 @@ final class DictifySettings {
         set { defaults.set(newValue, forKey: "hasCompletedOnboarding") }
     }
 
-    /// "quality" (llama-3.3-70b-versatile) or "fast" (llama-3.1-8b-instant).
+    /// "quality" (openai/gpt-oss-120b) or "fast" (openai/gpt-oss-20b).
     var refinementSpeedMode: String {
         get { defaults.string(forKey: "refinementSpeedMode") ?? "quality" }
         set { defaults.set(newValue, forKey: "refinementSpeedMode") }

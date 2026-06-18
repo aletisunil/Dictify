@@ -10,7 +10,7 @@ Dictify is a native macOS dictation app that turns your speech into clean, punct
 
 In this short demo, I use Dictify to speak a prompt into Codex. Hold the activation key, talk naturally, release, and Dictify transcribes, cleans up the wording, and types the result into the focused text field.
 
-Built with Groq Whisper for transcription and Groq Llama for AI cleanup, Dictify can remove filler words, resolve quick corrections, add punctuation, and keep your dictation flow fast across macOS.
+Built with Groq Whisper for transcription and Groq GPT-OSS for AI cleanup, Dictify can remove filler words, resolve quick corrections, add punctuation, and keep your dictation flow fast across macOS.
 
 GitHub: https://github.com/aletisuni/Dictify
 

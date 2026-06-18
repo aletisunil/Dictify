@@ -10,9 +10,8 @@ enum Constants {
         static let chatCompletionEndpoint = "\(baseURL)/chat/completions"
         static let modelsEndpoint = "\(baseURL)/models"
         static let whisperModel = "whisper-large-v3-turbo"
-        static let llamaModel = "llama-3.3-70b-versatile"
-        static let llamaModelQuality = "llama-3.3-70b-versatile"
-        static let llamaModelFast = "llama-3.1-8b-instant"
+        static let gptOssModelQuality = "openai/gpt-oss-120b"
+        static let gptOssModelFast = "openai/gpt-oss-20b"
         static let whisperPromptMaxTokens = 200
         static let snippetContextMaxTokens = 1500
     }
@@ -61,5 +60,7 @@ enum Constants {
         static let indicatorHeight: CGFloat = 42
         static let indicatorCornerRadius: CGFloat = 21
         static let maxHistoryItems = 500
+        /// UserDefaults key backing the System/Light/Dark appearance picker.
+        static let appearancePreferenceKey = "appearancePreference"
     }
 }
