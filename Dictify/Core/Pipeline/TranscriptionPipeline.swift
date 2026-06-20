@@ -233,11 +233,13 @@ actor TranscriptionPipeline {
             do {
                 try Task.checkCancellation()
                 let context = await MainActor.run { snippetStore.snippetContext }
+                let dictContext = await MainActor.run { dictionaryStore.promptString }
                 let speedMode = await MainActor.run { settings.refinementSpeedMode }
                 let model = Self.resolveGPTOssModel(from: speedMode)
                 finalText = try await gptOssService.refine(
                     rawTranscript: rawTranscript,
                     snippetContext: context,
+                    dictionaryContext: dictContext,
                     model: model
                 )
             } catch APIError.cancelled, is CancellationError {
