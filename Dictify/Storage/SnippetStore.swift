@@ -10,56 +10,22 @@ final class SnippetStore: ObservableObject {
         load()
     }
 
-    /// Deterministically replaces each snippet cue (whole-word, case-insensitive)
-    /// in `text` with its expanded body. Pure local string work — no model.
-    ///
-    /// All cues are matched against the *original* text in a single scan and the
-    /// hits are spliced in one pass. Inserted bodies are never re-scanned, so a
-    /// cue can't expand inside another snippet's freshly-inserted body. On
-    /// overlap the longer cue wins (then the earlier one); shorter losers are
-    /// dropped so each character of the original is expanded at most once.
-    func expand(in text: String) -> String {
-        guard !snippets.isEmpty else { return text }
-        let nsText = text as NSString
-        let fullRange = NSRange(location: 0, length: nsText.length)
-
-        // Collect every candidate match across all snippets.
-        struct Hit { let range: NSRange; let body: String; let cueLength: Int }
-        var hits: [Hit] = []
-        for snippet in snippets {
+    /// Builds the snippet block injected into the refinement prompt so the model
+    /// expands cues — including misheard/reformatted ones the local whole-word
+    /// matcher would miss. Bodies are resolved via `expandedBody()` here (on the
+    /// main actor) so `{{date}}`/`{{time}}`/`{{clipboard}}` are substituted before
+    /// the prompt is sent; the model never has to compute them. Returns "" when no
+    /// snippets exist so the prompt's cacheable prefix stays byte-identical.
+    func snippetContext() -> String {
+        let lines: [String] = snippets.compactMap { snippet in
             let cue = snippet.cue.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !cue.isEmpty else { continue }
-            // (?i) case-insensitive; \w lookarounds give whole-word matching
-            // without consuming surrounding punctuation/whitespace.
-            let pattern = "(?i)(?<!\\w)\(NSRegularExpression.escapedPattern(for: cue))(?!\\w)"
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-            let body = snippet.expandedBody()
-            for match in regex.matches(in: text, range: fullRange) {
-                hits.append(Hit(range: match.range, body: body, cueLength: cue.count))
-            }
+            guard !cue.isEmpty else { return nil }
+            // Single-line the body so each snippet stays one prompt line; the model
+            // restores any intended line breaks from the body's literal "\n".
+            let body = snippet.expandedBody().replacingOccurrences(of: "\n", with: "\\n")
+            return "  \"\(cue)\" => \(body)"
         }
-        guard !hits.isEmpty else { return text }
-
-        // Resolve overlaps: sort by start, then prefer the longer cue. Walk
-        // left-to-right keeping only hits that start past the last kept hit's end.
-        hits.sort {
-            $0.range.location != $1.range.location
-                ? $0.range.location < $1.range.location
-                : $0.cueLength > $1.cueLength
-        }
-        var chosen: [Hit] = []
-        var nextStart = 0
-        for hit in hits where hit.range.location >= nextStart {
-            chosen.append(hit)
-            nextStart = hit.range.location + hit.range.length
-        }
-
-        // Splice right-to-left so earlier ranges stay valid as we mutate.
-        let result = NSMutableString(string: text)
-        for hit in chosen.reversed() {
-            result.replaceCharacters(in: hit.range, with: hit.body)
-        }
-        return result as String
+        return lines.joined(separator: "\n")
     }
 
     func add(_ snippet: Snippet) {

@@ -122,6 +122,242 @@ extension View {
     }
 }
 
+// MARK: - Design tokens
+//
+// One spacing/radius/type scale so every screen shares the same rhythm. Pages
+// (Snippets, Dictionary, About, Home) and the shared components below all draw
+// from these instead of hand-picking magic numbers, which is what made the
+// pages drift apart visually.
+
+enum DS {
+    /// Spacing scale (4-pt base).
+    enum Space {
+        static let xs: CGFloat = 4
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 12
+        static let lg: CGFloat = 16
+        static let xl: CGFloat = 24
+        static let xxl: CGFloat = 32
+    }
+
+    /// Corner radii.
+    enum Radius {
+        static let control: CGFloat = 8
+        static let card: CGFloat = 12
+    }
+
+    /// Page content inset — matches the grouped Form inset so Form-based pages
+    /// (General/API) and card-based pages (Snippets/Dictionary) line up.
+    static let pageInset: CGFloat = 20
+}
+
+// Sizes mirror the scale already used on Home/History so every page reads the
+// same: row text 13, supporting 11, card/section titles 14, hero 18.
+extension Font {
+    /// App-identity / hero title (matches Home hero).
+    static let dsTitle = Font.system(size: 18, weight: .semibold)
+    /// Card / section header.
+    static let dsHeadline = Font.system(size: 14, weight: .semibold)
+    /// Primary row text.
+    static let dsBody = Font.system(size: 13)
+    /// Emphasised row text.
+    static let dsBodyMedium = Font.system(size: 13, weight: .medium)
+    /// Secondary / supporting text.
+    static let dsCaption = Font.system(size: 11)
+    /// Badge / pill text — matches the inline labels used on Home/History.
+    static let dsBadge = Font.system(size: 11, weight: .medium)
+    /// Monospaced bodies (snippet text, keys).
+    static let dsMono = Font.system(size: 12, design: .monospaced)
+}
+
+// MARK: - Card surface
+
+extension View {
+    /// The single card surface used across the app: cream card fill, hairline
+    /// border, card radius. A soft shadow lifts it off the warm window without
+    /// the heavy drop-shadow that read as cheap.
+    func dsCard(padding: CGFloat = DS.Space.lg, radius: CGFloat = DS.Radius.card) -> some View {
+        self
+            .padding(padding)
+            .background(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(Color.appCardBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(Color.appHairline, lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+    }
+}
+
+// MARK: - Section header
+
+/// A page/section header: title + optional supporting subtitle. Used at the top
+/// of card-based pages so they read with the same hierarchy as Form sections.
+struct DSSectionHeader: View {
+    let title: String
+    var subtitle: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.xs) {
+            Text(title)
+                // Matches the grouped-Form section header prominence on
+                // General/API so card-based pages share the same hierarchy.
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.primary)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.dsCaption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Badge
+
+/// The single capsule badge (snippet/dictionary category, "Learned"), replacing
+/// the hand-rolled, hardcoded capsules that differed page to page.
+struct Badge: View {
+    let text: String
+    var tint: Color = .appAccent
+
+    var body: some View {
+        Text(text)
+            .font(.dsBadge)
+            .foregroundStyle(tint)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(tint.opacity(0.12)))
+    }
+}
+
+// MARK: - Inline hint
+
+/// A quiet inline note (e.g. "Snippets require refinement enabled"). Lower-key
+/// than `HomeBanner` — for in-context guidance rather than alerts.
+struct InlineHint: View {
+    let icon: String
+    let text: String
+    var tint: Color = .appWorking
+
+    var body: some View {
+        HStack(spacing: DS.Space.sm) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundStyle(tint)
+            Text(text)
+                .font(.dsCaption)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, DS.Space.md)
+        .padding(.vertical, DS.Space.sm)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.control, style: .continuous)
+                .fill(tint.opacity(0.10))
+        )
+    }
+}
+
+// MARK: - Library toolbar
+
+/// Shared toolbar for the list pages (Snippets, Dictionary): a search field and
+/// a prominent add button, aligned to the page inset.
+struct LibraryToolbar: View {
+    let searchPlaceholder: String
+    @Binding var searchText: String
+    let addTitle: String
+    let onAdd: () -> Void
+
+    var body: some View {
+        HStack(spacing: DS.Space.md) {
+            SearchField(placeholder: searchPlaceholder, text: $searchText)
+            Spacer()
+            Button(action: onAdd) {
+                Label(addTitle, systemImage: "plus")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.regular)
+        }
+    }
+}
+
+// MARK: - Library row
+
+/// One row in a card-based list page (Snippets, Dictionary). Title, an optional
+/// subtitle, a trailing badge cluster, and edit/delete actions — the single row
+/// layout both pages share instead of two divergent hand-built `HStack`s.
+struct LibraryRow<Badges: View>: View {
+    let title: String
+    var subtitle: String?
+    @ViewBuilder var badges: () -> Badges
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: DS.Space.md) {
+            VStack(alignment: .leading, spacing: DS.Space.xs) {
+                Text(title)
+                    .font(.dsBody)
+                    .foregroundStyle(.primary)
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.dsCaption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                HStack(spacing: DS.Space.sm) { badges() }
+            }
+            Spacer(minLength: 0)
+            HStack(spacing: DS.Space.xs) {
+                IconActionButton(systemName: "pencil", action: onEdit)
+                IconActionButton(systemName: "trash", tint: .secondary, action: onDelete)
+            }
+        }
+        .padding(.vertical, DS.Space.sm)
+    }
+}
+
+/// Small hover-highlighting icon button used for row actions.
+struct IconActionButton: View {
+    let systemName: String
+    var tint: Color = .secondary
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(hovering ? Color.primary : tint)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.primary.opacity(hovering ? 0.08 : 0))
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
+/// Wraps a set of rows in the shared card surface, inserting hairline dividers
+/// between them — visually equivalent to a grouped Form section, so card-based
+/// pages match General/API.
+struct CardGroup<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content()
+        }
+        .dsCard(padding: DS.Space.md)
+    }
+}
+
 // MARK: - Search field
 
 /// The single search-field style used everywhere (History, Snippets,

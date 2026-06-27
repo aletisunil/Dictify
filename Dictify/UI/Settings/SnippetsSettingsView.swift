@@ -17,83 +17,66 @@ struct SnippetsSettingsView: View {
         }
     }
 
+    @AppStorage("refinementEnabled") private var refinementEnabled: Bool = true
+
     var body: some View {
-        VStack(spacing: 0) {
-            if let error = store?.lastSaveError {
-                HomeBanner(
-                    icon: "exclamationmark.triangle.fill",
-                    tint: .appAlert,
-                    title: "Could not save snippets",
-                    message: error.localizedDescription
-                )
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-            }
-
-            HStack {
-                SearchField(placeholder: "Search snippets...", text: $searchText)
-
-                Spacer()
-
-                Button(action: { showingAddSheet = true }) {
-                    Label("Add Snippet", systemImage: "plus")
+        ScrollView {
+            VStack(alignment: .leading, spacing: DS.Space.lg) {
+                if let error = store?.lastSaveError {
+                    HomeBanner(
+                        icon: "exclamationmark.triangle.fill",
+                        tint: .appAlert,
+                        title: "Could not save snippets",
+                        message: error.localizedDescription
+                    )
                 }
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
 
-            Divider()
-
-            if filteredSnippets.isEmpty {
-                EmptyStateCard(
-                    icon: searchText.isEmpty ? "doc.text" : "magnifyingglass",
-                    title: searchText.isEmpty ? "No snippets" : "No matches",
-                    subtitle: searchText.isEmpty
-                        ? "Create snippets to expand spoken cues into full text."
-                        : "Try a different search term."
+                DSSectionHeader(
+                    title: "Snippets",
+                    subtitle: "Speak a cue and Dictify expands it into the full text."
                 )
-                .padding(24)
-                Spacer()
-            } else {
-                List {
-                    ForEach(filteredSnippets) { snippet in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(snippet.cue)
-                                    .font(.body.weight(.medium))
-                                    .foregroundStyle(.primary)
-                                Text(snippet.body)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                                Text(snippet.category)
-                                    .font(.caption2)
-                                    .foregroundStyle(Color.appAccent)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.appAccent.opacity(0.12))
-                                    .clipShape(Capsule())
-                            }
 
-                            Spacer()
+                if !refinementEnabled {
+                    InlineHint(
+                        icon: "wand.and.stars",
+                        text: "Snippets are expanded by AI refinement. Turn on “AI Text Refinement” in General to use them."
+                    )
+                }
 
-                            Button(action: { editingSnippet = snippet }) {
-                                Image(systemName: "pencil")
-                            }
-                            .buttonStyle(.borderless)
+                LibraryToolbar(
+                    searchPlaceholder: "Search snippets…",
+                    searchText: $searchText,
+                    addTitle: "Add Snippet",
+                    onAdd: { showingAddSheet = true }
+                )
 
-                            Button(action: { store?.remove(snippet) }) {
-                                Image(systemName: "trash")
-                                    .foregroundStyle(.red)
-                            }
-                            .buttonStyle(.borderless)
+                if filteredSnippets.isEmpty {
+                    EmptyStateCard(
+                        icon: searchText.isEmpty ? "doc.text" : "magnifyingglass",
+                        title: searchText.isEmpty ? "No snippets" : "No matches",
+                        subtitle: searchText.isEmpty
+                            ? "Create snippets to expand spoken cues into full text."
+                            : "Try a different search term."
+                    )
+                    .frame(maxWidth: .infinity)
+                    .dsCard()
+                } else {
+                    CardGroup {
+                        ForEach(Array(filteredSnippets.enumerated()), id: \.element.id) { index, snippet in
+                            if index > 0 { Divider().background(Color.appHairline) }
+                            LibraryRow(
+                                title: snippet.cue,
+                                subtitle: snippet.body,
+                                badges: { Badge(text: snippet.category) },
+                                onEdit: { editingSnippet = snippet },
+                                onDelete: { store?.remove(snippet) }
+                            )
                         }
-                        .padding(.vertical, 4)
-                        .listRowBackground(Color.appCardBackground)
                     }
                 }
-                .scrollContentBackground(.hidden)
             }
+            .padding(DS.pageInset)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.appWindowBackground)
@@ -139,7 +122,8 @@ struct SnippetEditor: View {
     var body: some View {
         VStack(spacing: 16) {
             Text(existingId != nil ? "Edit Snippet" : "Add Snippet")
-                .font(.headline)
+                .font(.dsHeadline)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Form {
                 TextField("Spoken Cue (e.g., \"calendar link\")", text: $cue)
@@ -191,6 +175,7 @@ struct SnippetEditor: View {
                     )
                     onSave(snippet)
                 }
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(cue.isEmpty || snippetBody.isEmpty)
             }

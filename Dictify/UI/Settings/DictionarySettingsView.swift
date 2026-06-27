@@ -15,95 +15,61 @@ struct DictionarySettingsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if let error = store?.lastSaveError {
-                HomeBanner(
-                    icon: "exclamationmark.triangle.fill",
-                    tint: .appAlert,
-                    title: "Could not save dictionary",
-                    message: error.localizedDescription
-                )
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-            }
-
-            // Toolbar
-            HStack {
-                SearchField(placeholder: "Search terms...", text: $searchText)
-
-                Spacer()
-
-                Button(action: { showingAddSheet = true }) {
-                    Label("Add Term", systemImage: "plus")
+        ScrollView {
+            VStack(alignment: .leading, spacing: DS.Space.lg) {
+                if let error = store?.lastSaveError {
+                    HomeBanner(
+                        icon: "exclamationmark.triangle.fill",
+                        tint: .appAlert,
+                        title: "Could not save dictionary",
+                        message: error.localizedDescription
+                    )
                 }
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
 
-            Divider()
-
-            // List
-            if filteredEntries.isEmpty {
-                EmptyStateCard(
-                    icon: searchText.isEmpty ? "book.closed" : "magnifyingglass",
-                    title: searchText.isEmpty ? "No dictionary terms" : "No matches",
-                    subtitle: searchText.isEmpty
-                        ? "Add custom terms to improve transcription accuracy."
-                        : "Try a different search term."
+                DSSectionHeader(
+                    title: "Dictionary",
+                    subtitle: "Custom terms Dictify favours when transcribing and refining."
                 )
-                .padding(24)
-                Spacer()
-            } else {
-                List {
-                    ForEach(filteredEntries) { entry in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(entry.term)
-                                    .font(.body.weight(.medium))
-                                HStack(spacing: 8) {
-                                    Text(entry.category)
-                                        .font(.caption)
-                                        .foregroundStyle(Color.appAccent)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.appAccent.opacity(0.12))
-                                        .clipShape(Capsule())
+
+                LibraryToolbar(
+                    searchPlaceholder: "Search terms…",
+                    searchText: $searchText,
+                    addTitle: "Add Term",
+                    onAdd: { showingAddSheet = true }
+                )
+
+                if filteredEntries.isEmpty {
+                    EmptyStateCard(
+                        icon: searchText.isEmpty ? "book.closed" : "magnifyingglass",
+                        title: searchText.isEmpty ? "No dictionary terms" : "No matches",
+                        subtitle: searchText.isEmpty
+                            ? "Add custom terms to improve transcription accuracy."
+                            : "Try a different search term."
+                    )
+                    .frame(maxWidth: .infinity)
+                    .dsCard()
+                } else {
+                    CardGroup {
+                        ForEach(Array(filteredEntries.enumerated()), id: \.element.id) { index, entry in
+                            if index > 0 { Divider().background(Color.appHairline) }
+                            LibraryRow(
+                                title: entry.term,
+                                subtitle: entry.phoneticHint.map { "[\($0)]" },
+                                badges: {
+                                    Badge(text: entry.category)
                                     if entry.source == .learned {
-                                        Text("Learned")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color.secondary.opacity(0.12))
-                                            .clipShape(Capsule())
+                                        Badge(text: "Learned", tint: .secondary)
                                     }
-                                    if let hint = entry.phoneticHint {
-                                        Text("[\(hint)]")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-
-                            Spacer()
-
-                            Button(action: { editingEntry = entry }) {
-                                Image(systemName: "pencil")
-                            }
-                            .buttonStyle(.borderless)
-
-                            Button(action: { store?.remove(entry) }) {
-                                Image(systemName: "trash")
-                                    .foregroundStyle(.red)
-                            }
-                            .buttonStyle(.borderless)
+                                },
+                                onEdit: { editingEntry = entry },
+                                onDelete: { store?.remove(entry) }
+                            )
                         }
-                        .padding(.vertical, 4)
-                        .listRowBackground(Color.appCardBackground)
                     }
                 }
-                .scrollContentBackground(.hidden)
             }
+            .padding(DS.pageInset)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.appWindowBackground)
@@ -149,7 +115,8 @@ struct DictionaryEntryEditor: View {
     var body: some View {
         VStack(spacing: 16) {
             Text(existingId != nil ? "Edit Term" : "Add Term")
-                .font(.headline)
+                .font(.dsHeadline)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Form {
                 TextField("Term", text: $term)
@@ -180,6 +147,7 @@ struct DictionaryEntryEditor: View {
                     )
                     onSave(entry)
                 }
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(term.isEmpty)
             }

@@ -13,12 +13,14 @@ final class GPTOssService: @unchecked Sendable {
     func refine(
         rawTranscript: String,
         dictionaryContext: String,
+        snippetContext: String = "",
         model: String = Constants.API.gptOssModelQuality,
         reasoningEffort: String = "medium"
     ) async throws -> String {
         let messages: [[String: Any]] = Self.buildMessages(
             systemPrompt: Self.systemPrompt,
             dictionaryContext: dictionaryContext,
+            snippetContext: snippetContext,
             rawTranscript: rawTranscript
         )
 
@@ -60,7 +62,7 @@ final class GPTOssService: @unchecked Sendable {
         // Output-sanity guard: if the model ignored the "don't answer" rule and
         // produced a long answer to a question in the transcript, fall back to
         // the raw transcript rather than inserting hallucinated content.
-        if Self.looksLikeModelAnswer(refined: refined, raw: rawTranscript) {
+        if Self.looksLikeModelAnswer(refined: refined, raw: rawTranscript, hasSnippets: !snippetContext.isEmpty) {
             Log.pipeline.notice("GPT-OSS output failed sanity guard; falling back to raw transcript")
             return rawTranscript
         }
@@ -112,6 +114,11 @@ final class GPTOssService: @unchecked Sendable {
         9. If a phrase is broken or trails off, reconstruct the speaker's likely \
         intended sentence from context. Never output a polished sentence that \
         says nothing coherent.
+        10. If a SNIPPETS system message is provided, expand any cue that appears \
+        in the transcript into its replacement text verbatim — preserve the \
+        replacement exactly (URLs, addresses, punctuation), only converting a \
+        literal \\n into a line break. This is text substitution, not answering. \
+        Never invent an expansion for a cue that isn't present.
 
         Your output is ONLY the cleaned transcription, preserving the speaker's \
         meaning and wording. No preamble ("Here is…", "Sure,…"), no commentary, \
@@ -124,9 +131,9 @@ final class GPTOssService: @unchecked Sendable {
     /// multi-shot example that reinforces the output distribution far more
     /// reliably than a long system prompt alone. GPT-OSS in particular is
     /// sensitive to assistant-turn priming.
-    private static func buildMessages(systemPrompt: String, dictionaryContext: String, rawTranscript: String) -> [[String: Any]] {
+    private static func buildMessages(systemPrompt: String, dictionaryContext: String, snippetContext: String, rawTranscript: String) -> [[String: Any]] {
         let dictionary = dictionaryContext.isEmpty ? "No dictionary terms defined." : dictionaryContext
-        return [
+        var messages: [[String: Any]] = [
             ["role": "system", "content": systemPrompt],
 
             // Shot 1: question as input — the model must return it, not answer.
@@ -152,11 +159,25 @@ final class GPTOssService: @unchecked Sendable {
 
             // Variable tail — kept after the static prefix so the system prompt
             // and the five examples above stay byte-identical and cacheable.
-            ["role": "system", "content": "DICTIONARY (canonical spellings of likely-misheard terms):\n\(dictionary)"],
-
-            // Real utterance.
-            ["role": "user", "content": rawTranscript]
+            ["role": "system", "content": "DICTIONARY (canonical spellings of likely-misheard terms):\n\(dictionary)"]
         ]
+
+        // Optional snippet tail — only present when the user has snippets, so the
+        // cacheable prefix above is unaffected for the common (no-snippet) case.
+        if !snippetContext.isEmpty {
+            messages.append([
+                "role": "system",
+                "content": "SNIPPETS — if the transcript contains one of these cues "
+                    + "(allow for mishearings/different casing/punctuation), replace the "
+                    + "cue with its replacement text verbatim. A literal \\n in a "
+                    + "replacement means a line break. Do not expand cues that aren't "
+                    + "present.\n\(snippetContext)"
+            ])
+        }
+
+        // Real utterance.
+        messages.append(["role": "user", "content": rawTranscript])
+        return messages
     }
 
     // MARK: - Output-sanity guard
@@ -165,7 +186,7 @@ final class GPTOssService: @unchecked Sendable {
     /// transcription as a prompt and produces an answer/preamble. Intentionally
     /// lenient: only triggers when output is clearly divergent from input, so
     /// legitimate cleanup (punctuation, filler removal) passes through.
-    private static func looksLikeModelAnswer(refined: String, raw: String) -> Bool {
+    private static func looksLikeModelAnswer(refined: String, raw: String, hasSnippets: Bool) -> Bool {
         let lower = refined.lowercased()
 
         // Preamble markers almost never appear in real dictated speech.
@@ -189,12 +210,15 @@ final class GPTOssService: @unchecked Sendable {
         }
 
         // Length runaway — refinement should never substantially expand input.
-        // Allow up to 2.5× the raw character count (accounts for punctuation +
-        // snippet expansion). Beyond that, the model is almost certainly
-        // generating net-new content.
-        let rawLen = max(raw.count, 1)
-        if Double(refined.count) > 2.5 * Double(rawLen) && refined.count > 200 {
-            return true
+        // Allow up to 2.5× the raw character count. Beyond that, the model is
+        // almost certainly generating net-new content. Skipped entirely when
+        // snippets are in play: a single cue can legitimately expand into a large
+        // body (e.g. a pasted clipboard block), which this check would misflag.
+        if !hasSnippets {
+            let rawLen = max(raw.count, 1)
+            if Double(refined.count) > 2.5 * Double(rawLen) && refined.count > 200 {
+                return true
+            }
         }
 
         return false

@@ -228,9 +228,12 @@ actor TranscriptionPipeline {
         var finalText = rawTranscript
 
         let refinementEnabled = await MainActor.run { settings.refinementEnabled }
+        let hasSnippets = await MainActor.run { !snippetStore.snippets.isEmpty }
         // Skip refinement entirely for short clean utterances — cuts ~200-800ms
-        // off quick commands like "yes", "next slide", "ok sounds good".
-        let skipRefinement = Self.shouldSkipRefinement(rawTranscript: rawTranscript)
+        // off quick commands like "yes", "next slide", "ok sounds good". But never
+        // skip when snippets exist: cues are often short, clean utterances and
+        // snippet expansion happens only on the refinement path now.
+        let skipRefinement = !hasSnippets && Self.shouldSkipRefinement(rawTranscript: rawTranscript)
         if refinementEnabled && !skipRefinement {
             await MainActor.run {
                 appState.pipelineState = .refining
@@ -240,12 +243,16 @@ actor TranscriptionPipeline {
             do {
                 try Task.checkCancellation()
                 let dictContext = await MainActor.run { dictionaryStore.promptString }
+                // Built on the main actor: resolves {{date}}/{{time}}/{{clipboard}}
+                // before the prompt is sent. Empty string when no snippets exist.
+                let snippetCtx = await MainActor.run { snippetStore.snippetContext() }
                 let speedMode = await MainActor.run { settings.refinementSpeedMode }
                 let model = Self.resolveGPTOssModel(from: speedMode)
                 let effort = Self.resolveReasoningEffort(from: speedMode)
                 finalText = try await gptOssService.refine(
                     rawTranscript: rawTranscript,
                     dictionaryContext: dictContext,
+                    snippetContext: snippetCtx,
                     model: model,
                     reasoningEffort: effort
                 )
@@ -279,10 +286,9 @@ actor TranscriptionPipeline {
         }
 
         let insertState = Log.pipelineSignpost.beginInterval("insert", id: signpostID)
-        // Deterministically expand snippet cues into their bodies. Runs on every
-        // path (refined, skipped, refinement-off) so snippets always expand, and
-        // keeps bodies byte-exact since the model never sees them.
-        finalText = await MainActor.run { snippetStore.expand(in: finalText) }
+        // Snippet expansion is now handled by the refinement model (see
+        // SnippetStore.snippetContext / GPTOssService), so cues are matched even
+        // when misheard or reformatted. Nothing to splice locally here.
         // Wait for the 100ms focus-handoff window we kicked off at the start of
         // processing; by now it has almost certainly already elapsed.
         _ = await focusHandoffTask.value
