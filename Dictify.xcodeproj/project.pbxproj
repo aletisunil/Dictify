@@ -54,6 +54,8 @@
 		A10000061 /* LogRedactor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000061 /* LogRedactor.swift */; };
 		A10000062 /* DiagnosticsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000062 /* DiagnosticsBundle.swift */; };
 		A10000070 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000070 /* Theme.swift */; };
+		A10000080 /* CorrectionLearner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000080 /* CorrectionLearner.swift */; };
+		A10000081 /* CorrectionMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000081 /* CorrectionMonitor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -107,6 +109,8 @@
 		B10000061 /* LogRedactor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogRedactor.swift; sourceTree = "<group>"; };
 		B10000062 /* DiagnosticsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsBundle.swift; sourceTree = "<group>"; };
 		B10000070 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		B10000080 /* CorrectionLearner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionLearner.swift; sourceTree = "<group>"; };
+		B10000081 /* CorrectionMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionMonitor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -173,8 +177,18 @@
 				D10000008 /* TextInsertion */,
 				D10000009 /* Permissions */,
 				D10000020 /* Pipeline */,
+				D10000021 /* Dictionary */,
 			);
 			path = Core;
+			sourceTree = "<group>";
+		};
+		D10000021 /* Dictionary */ = {
+			isa = PBXGroup;
+			children = (
+				B10000080 /* CorrectionLearner.swift */,
+				B10000081 /* CorrectionMonitor.swift */,
+			);
+			path = Dictionary;
 			sourceTree = "<group>";
 		};
 		D10000005 /* HotKey */ = {
@@ -459,6 +473,8 @@
 				A10000060 /* LogCollector.swift in Sources */,
 				A10000061 /* LogRedactor.swift in Sources */,
 				A10000062 /* DiagnosticsBundle.swift in Sources */,
+				A10000080 /* CorrectionLearner.swift in Sources */,
+				A10000081 /* CorrectionMonitor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

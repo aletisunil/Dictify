@@ -12,6 +12,7 @@ struct GeneralSettingsView: View {
     @AppStorage("middleMouseEnabled") private var middleMouseEnabled: Bool = false
     @AppStorage("refinementEnabled") private var refinementEnabled: Bool = true
     @AppStorage("refinementSpeedMode") private var refinementSpeedMode: String = "quality"
+    @AppStorage("autoLearnEnabled") private var autoLearnEnabled: Bool = false
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
     @AppStorage("soundEffectsEnabled") private var soundEffectsEnabled: Bool = true
     @AppStorage("showElapsedTime") private var showElapsedTime: Bool = true
@@ -150,6 +151,11 @@ struct GeneralSettingsView: View {
                 Text(refinementSpeedMode == "fast"
                      ? "GPT-OSS 20B — quicker, lighter cleanup."
                      : "GPT-OSS 120B — best cleanup, a bit slower.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle("Auto-learn from corrections", isOn: $autoLearnEnabled)
+                Text("When you fix a transcription in another app, the corrected word is added to your dictionary. Requires Accessibility permission and works only where text is inserted directly (not clipboard-paste apps like Slack).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

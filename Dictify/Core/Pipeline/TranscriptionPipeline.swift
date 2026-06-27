@@ -42,6 +42,7 @@ actor TranscriptionPipeline {
     private let snippetStore: SnippetStore
     private let historyStore: HistoryStore
     private let statsStore: StatsStore
+    private let correctionMonitor: CorrectionMonitor
     private let settings: DictifySettings
     private let elapsedTimer: ElapsedTimer
 
@@ -53,7 +54,8 @@ actor TranscriptionPipeline {
          dictionaryStore: DictionaryStore,
          snippetStore: SnippetStore,
          historyStore: HistoryStore,
-         statsStore: StatsStore) {
+         statsStore: StatsStore,
+         correctionMonitor: CorrectionMonitor) {
         self.appState = appState
         self.audioEngine = AudioEngine()
         self.groqClient = GroqClient(keychainManager: keychainManager)
@@ -65,6 +67,7 @@ actor TranscriptionPipeline {
         self.snippetStore = snippetStore
         self.historyStore = historyStore
         self.statsStore = statsStore
+        self.correctionMonitor = correctionMonitor
         self.settings = appState.settings
         self.elapsedTimer = MainActor.assumeIsolated { ElapsedTimer() }
     }
@@ -89,6 +92,10 @@ actor TranscriptionPipeline {
         guard canStart else {
             return
         }
+
+        // Flush any pending auto-learn capture from the previous dictation's
+        // field before we start a new one (the user has likely finished editing).
+        await MainActor.run { correctionMonitor.captureArmed() }
 
         let preferredDeviceUID = await MainActor.run { settings.selectedInputDeviceUID }
 
@@ -366,6 +373,9 @@ actor TranscriptionPipeline {
         if insertionResult.inserted {
             await MainActor.run {
                 AccessibilityInserter.announceInsertionSuccess()
+                // Arm correction monitoring on the field we just inserted into
+                // (AX path only — clipboard targets expose no readable value).
+                correctionMonitor.arm(insertedText: text)
             }
             return
         }

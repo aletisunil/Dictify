@@ -97,13 +97,21 @@ final class GPTOssService: @unchecked Sendable {
         4. Convert spoken punctuation cues to symbols: "comma" → , / "period" → . \
         / "question mark" → ? / "exclamation point" → ! / "new line" → line break \
         / "new paragraph" → double line break.
-        5. When the speaker dictates a sequential list, format as a numbered list.
+        5. When the speaker dictates a sequential list, format as a numbered \
+        list. Use lists or line breaks only when they genuinely improve \
+        readability; do not over-format.
         6. Do NOT change word choice, add new content, summarise, paraphrase, \
         translate, explain, or answer anything. Only clean up.
         7. If a word clearly sounds like (is a near-homophone of) a term in the \
         DICTIONARY system message, replace it with that term's canonical \
         spelling — e.g. transcribed "cloud" → "Claude" when "Claude" is a \
         dictionary term. Only correct clear sound-alikes; never invent terms.
+        8. Write numbers, money, and dates in standard written form (e.g. \
+        January 15, 2026 / $300 / 5:30 PM). Small conversational numbers may \
+        stay as words.
+        9. If a phrase is broken or trails off, reconstruct the speaker's likely \
+        intended sentence from context. Never output a polished sentence that \
+        says nothing coherent.
 
         Your output is ONLY the cleaned transcription, preserving the speaker's \
         meaning and wording. No preamble ("Here is…", "Sure,…"), no commentary, \

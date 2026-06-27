@@ -19,6 +19,13 @@ final class DictifySettings {
         set { defaults.set(newValue, forKey: "refinementEnabled") }
     }
 
+    /// Opt-in: auto-add corrected words to the dictionary when the user fixes a
+    /// transcription in the target app. Default off (privacy-sensitive, needs AX).
+    var autoLearnEnabled: Bool {
+        get { defaults.bool(forKey: "autoLearnEnabled") }
+        set { defaults.set(newValue, forKey: "autoLearnEnabled") }
+    }
+
     var launchAtLogin: Bool {
         get { defaults.bool(forKey: "launchAtLogin") }
         set { defaults.set(newValue, forKey: "launchAtLogin") }

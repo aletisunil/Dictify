@@ -32,6 +32,23 @@ final class DictionaryStore: ObservableObject {
         save()
     }
 
+    /// Append auto-learned correction terms, skipping any already present
+    /// (case-insensitive by term). Saves once. Returns the entries added.
+    @discardableResult
+    func addLearned(_ terms: [String]) -> [DictionaryEntry] {
+        let existing = Set(entries.map { $0.term.lowercased() })
+        var added: [DictionaryEntry] = []
+        for term in terms where !existing.contains(term.lowercased()) {
+            let entry = DictionaryEntry(term: term, source: .learned)
+            entries.append(entry)
+            added.append(entry)
+        }
+        if !added.isEmpty {
+            save()
+        }
+        return added
+    }
+
     func update(_ entry: DictionaryEntry) {
         if let index = entries.firstIndex(where: { $0.id == entry.id }) {
             entries[index] = entry

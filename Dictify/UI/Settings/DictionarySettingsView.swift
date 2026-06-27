@@ -68,6 +68,15 @@ struct DictionarySettingsView: View {
                                         .padding(.vertical, 2)
                                         .background(Color.appAccent.opacity(0.12))
                                         .clipShape(Capsule())
+                                    if entry.source == .learned {
+                                        Text("Learned")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.secondary.opacity(0.12))
+                                            .clipShape(Capsule())
+                                    }
                                     if let hint = entry.phoneticHint {
                                         Text("[\(hint)]")
                                             .font(.caption)
