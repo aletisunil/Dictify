@@ -232,15 +232,15 @@ actor TranscriptionPipeline {
             let refineState = Log.pipelineSignpost.beginInterval("refine", id: signpostID)
             do {
                 try Task.checkCancellation()
-                let context = await MainActor.run { snippetStore.snippetContext }
                 let dictContext = await MainActor.run { dictionaryStore.promptString }
                 let speedMode = await MainActor.run { settings.refinementSpeedMode }
                 let model = Self.resolveGPTOssModel(from: speedMode)
+                let effort = Self.resolveReasoningEffort(from: speedMode)
                 finalText = try await gptOssService.refine(
                     rawTranscript: rawTranscript,
-                    snippetContext: context,
                     dictionaryContext: dictContext,
-                    model: model
+                    model: model,
+                    reasoningEffort: effort
                 )
             } catch APIError.cancelled, is CancellationError {
                 Log.pipelineSignpost.endInterval("refine", refineState)
@@ -272,6 +272,10 @@ actor TranscriptionPipeline {
         }
 
         let insertState = Log.pipelineSignpost.beginInterval("insert", id: signpostID)
+        // Deterministically expand snippet cues into their bodies. Runs on every
+        // path (refined, skipped, refinement-off) so snippets always expand, and
+        // keeps bodies byte-exact since the model never sees them.
+        finalText = await MainActor.run { snippetStore.expand(in: finalText) }
         // Wait for the 100ms focus-handoff window we kicked off at the start of
         // processing; by now it has almost certainly already elapsed.
         _ = await focusHandoffTask.value
@@ -416,6 +420,11 @@ actor TranscriptionPipeline {
         case "fast": return Constants.API.gptOssModelFast
         default: return Constants.API.gptOssModelQuality
         }
+    }
+
+    /// Fast prioritizes speed, so use shallower reasoning; Quality keeps medium.
+    private static func resolveReasoningEffort(from mode: String) -> String {
+        mode == "fast" ? "low" : "medium"
     }
 
     /// Refinement is only useful when there are fillers, self-corrections, or

@@ -13,7 +13,6 @@ enum Constants {
         static let gptOssModelQuality = "openai/gpt-oss-120b"
         static let gptOssModelFast = "openai/gpt-oss-20b"
         static let whisperPromptMaxTokens = 200
-        static let snippetContextMaxTokens = 1500
     }
 
     enum Audio {

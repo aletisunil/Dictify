@@ -10,17 +10,26 @@ final class SnippetStore: ObservableObject {
         load()
     }
 
-    /// Snippet context for the GPT-OSS refinement prompt. Truncated to a rough
-    /// token budget (recency-sorted: most recently created survives).
-    var snippetContext: String {
-        snippetContext(maxTokens: Constants.API.snippetContextMaxTokens)
-    }
-
-    func snippetContext(maxTokens: Int) -> String {
-        guard !snippets.isEmpty else { return "No snippets defined." }
-        let sorted = snippets.sorted { $0.createdAt > $1.createdAt }
-        let formatted = sorted.map { "When the user says \"\($0.cue)\", replace it with: \($0.expandedBody())" }
-        return TokenBudget.fit(formatted, joiner: "\n", maxTokens: maxTokens)
+    /// Deterministically replaces each snippet cue (whole-word, case-insensitive)
+    /// in `text` with its expanded body. Longest cues first so a short cue can't
+    /// match inside a longer cue's text. Pure local string work — no model.
+    func expand(in text: String) -> String {
+        guard !snippets.isEmpty else { return text }
+        var result = text
+        let sorted = snippets.sorted { $0.cue.count > $1.cue.count }
+        for snippet in sorted {
+            let cue = snippet.cue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cue.isEmpty else { continue }
+            // (?i) case-insensitive; \w lookarounds give whole-word matching
+            // without consuming surrounding punctuation/whitespace.
+            let pattern = "(?i)(?<!\\w)\(NSRegularExpression.escapedPattern(for: cue))(?!\\w)"
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            // escapedTemplate so bodies containing $ or \ aren't read as refs.
+            let template = NSRegularExpression.escapedTemplate(for: snippet.expandedBody())
+            let range = NSRange(result.startIndex..., in: result)
+            result = regex.stringByReplacingMatches(in: result, range: range, withTemplate: template)
+        }
+        return result
     }
 
     func add(_ snippet: Snippet) {

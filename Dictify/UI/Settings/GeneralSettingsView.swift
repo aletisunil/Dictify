@@ -135,21 +135,21 @@ struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
 
                 HStack {
-                    Text("Refinement Speed")
+                    Text("Refinement Model")
                     Spacer()
                     Picker("", selection: $refinementSpeedMode) {
-                        Text("Quality").tag("quality")
-                        Text("Fast").tag("fast")
+                        Text("GPT-OSS 120B (Quality)").tag("quality")
+                        Text("GPT-OSS 20B (Fast)").tag("fast")
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                     .labelsHidden()
                     .fixedSize()
                 }
                 .disabled(!refinementEnabled)
 
                 Text(refinementSpeedMode == "fast"
-                     ? "Fast uses GPT-OSS 20B — quicker, slightly less polish."
-                     : "Quality uses GPT-OSS 120B — best cleanup.")
+                     ? "GPT-OSS 20B — quicker, lighter cleanup."
+                     : "GPT-OSS 120B — best cleanup, a bit slower.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

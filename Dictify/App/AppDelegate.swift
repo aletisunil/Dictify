@@ -87,7 +87,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
 
-        decideLaunchFlow()
+        // A login-item / reopen launch is not a "default" launch. When the app
+        // auto-starts at login we stay quietly in the menu bar instead of
+        // throwing the main window in the user's face on every reboot.
+        let isLoginLaunch = !(notification.userInfo?["NSApplicationLaunchIsDefaultLaunchKey"] as? Bool ?? true)
+        decideLaunchFlow(isLoginLaunch: isLoginLaunch)
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -117,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor
-    private func decideLaunchFlow() {
+    private func decideLaunchFlow(isLoginLaunch: Bool) {
         let completed = hasOnboardedDurably()
         let granted = permissionManager?.allPermissionsGranted == true
 
@@ -129,18 +133,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if granted {
             startKeyMonitor()
-            showMainWindow()
+            // Login launches stay in the menu bar; only user-initiated launches
+            // surface the main window.
+            if !isLoginLaunch { showMainWindow() }
             return
         }
 
         // Fully-onboarded user launched without permissions — could be a real
         // revocation, or just TCC still warming up after reboot. Poll briefly
         // before surfacing anything intrusive.
-        waitForPermissionsOrSurfaceBanner()
+        waitForPermissionsOrSurfaceBanner(isLoginLaunch: isLoginLaunch)
     }
 
     @MainActor
-    private func waitForPermissionsOrSurfaceBanner() {
+    private func waitForPermissionsOrSurfaceBanner(isLoginLaunch: Bool) {
         guard let permissionManager else { return }
 
         let deadline = Date().addingTimeInterval(3.0)
@@ -151,12 +157,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if permissionManager.allPermissionsGranted {
                 appState.permissionReGrantNeeded = false
                 startKeyMonitor()
-                showMainWindow()
+                if !isLoginLaunch { showMainWindow() }
                 return
             }
             if Date() >= deadline {
                 appState.permissionReGrantNeeded = true
-                showMainWindow()
+                if !isLoginLaunch { showMainWindow() }
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + checkInterval) {

@@ -12,13 +12,12 @@ final class GPTOssService: @unchecked Sendable {
     /// expanding snippet cues. `model` lets the caller pick quality-vs-speed.
     func refine(
         rawTranscript: String,
-        snippetContext: String,
         dictionaryContext: String,
-        model: String = Constants.API.gptOssModelQuality
+        model: String = Constants.API.gptOssModelQuality,
+        reasoningEffort: String = "medium"
     ) async throws -> String {
         let messages: [[String: Any]] = Self.buildMessages(
             systemPrompt: Self.systemPrompt,
-            snippetContext: snippetContext,
             dictionaryContext: dictionaryContext,
             rawTranscript: rawTranscript
         )
@@ -32,7 +31,8 @@ final class GPTOssService: @unchecked Sendable {
             // restructure rambling speech into clean grammar — "low" was too
             // shallow and left output rough, so use "medium". "parsed" keeps
             // reasoning out of `content` (the decoder only reads content).
-            "reasoning_effort": "medium",
+            // Effort is caller-driven: "medium" for Quality, "low" for Fast.
+            "reasoning_effort": reasoningEffort,
             "reasoning_format": "parsed"
         ]
 
@@ -100,9 +100,7 @@ final class GPTOssService: @unchecked Sendable {
         5. When the speaker dictates a sequential list, format as a numbered list.
         6. Do NOT change word choice, add new content, summarise, paraphrase, \
         translate, explain, or answer anything. Only clean up.
-        7. Expand snippet cues using the SNIPPET CONTEXT provided in the system \
-        message just before the final user message.
-        8. If a word clearly sounds like (is a near-homophone of) a term in the \
+        7. If a word clearly sounds like (is a near-homophone of) a term in the \
         DICTIONARY system message, replace it with that term's canonical \
         spelling — e.g. transcribed "cloud" → "Claude" when "Claude" is a \
         dictionary term. Only correct clear sound-alikes; never invent terms.
@@ -118,7 +116,7 @@ final class GPTOssService: @unchecked Sendable {
     /// multi-shot example that reinforces the output distribution far more
     /// reliably than a long system prompt alone. GPT-OSS in particular is
     /// sensitive to assistant-turn priming.
-    private static func buildMessages(systemPrompt: String, snippetContext: String, dictionaryContext: String, rawTranscript: String) -> [[String: Any]] {
+    private static func buildMessages(systemPrompt: String, dictionaryContext: String, rawTranscript: String) -> [[String: Any]] {
         let dictionary = dictionaryContext.isEmpty ? "No dictionary terms defined." : dictionaryContext
         return [
             ["role": "system", "content": systemPrompt],
@@ -146,7 +144,6 @@ final class GPTOssService: @unchecked Sendable {
 
             // Variable tail — kept after the static prefix so the system prompt
             // and the five examples above stay byte-identical and cacheable.
-            ["role": "system", "content": "SNIPPET CONTEXT:\n\(snippetContext)"],
             ["role": "system", "content": "DICTIONARY (canonical spellings of likely-misheard terms):\n\(dictionary)"],
 
             // Real utterance.
