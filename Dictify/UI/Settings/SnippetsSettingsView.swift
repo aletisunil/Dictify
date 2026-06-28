@@ -82,6 +82,7 @@ struct SnippetsSettingsView: View {
         .background(Color.appWindowBackground)
         .sheet(isPresented: $showingAddSheet) {
             SnippetEditor(
+                isDuplicate: { store?.cueExists($0, excluding: nil) ?? false },
                 onSave: { snippet in
                     store?.add(snippet)
                     showingAddSheet = false
@@ -92,6 +93,7 @@ struct SnippetsSettingsView: View {
         .sheet(item: $editingSnippet) { snippet in
             SnippetEditor(
                 snippet: snippet,
+                isDuplicate: { store?.cueExists($0, excluding: snippet.id) ?? false },
                 onSave: { updated in
                     store?.update(updated)
                     editingSnippet = nil
@@ -107,16 +109,25 @@ struct SnippetEditor: View {
     @State private var snippetBody: String
     @State private var category: String
     private let existingId: UUID?
+    let isDuplicate: (String) -> Bool
     let onSave: (Snippet) -> Void
     let onCancel: () -> Void
 
-    init(snippet: Snippet? = nil, onSave: @escaping (Snippet) -> Void, onCancel: @escaping () -> Void) {
+    init(snippet: Snippet? = nil, isDuplicate: @escaping (String) -> Bool, onSave: @escaping (Snippet) -> Void, onCancel: @escaping () -> Void) {
         _cue = State(initialValue: snippet?.cue ?? "")
         _snippetBody = State(initialValue: snippet?.body ?? "")
         _category = State(initialValue: snippet?.category ?? "general")
         existingId = snippet?.id
+        self.isDuplicate = isDuplicate
         self.onSave = onSave
         self.onCancel = onCancel
+    }
+
+    private var trimmedCue: String {
+        cue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    private var isDup: Bool {
+        !trimmedCue.isEmpty && isDuplicate(trimmedCue)
     }
 
     var body: some View {
@@ -128,6 +139,13 @@ struct SnippetEditor: View {
             Form {
                 TextField("Spoken Cue (e.g., \"calendar link\")", text: $cue)
                     .creamFormRow()
+
+                if isDup {
+                    Text("A snippet with this cue already exists.")
+                        .font(.caption)
+                        .foregroundStyle(Color.appAlert)
+                        .creamFormRow()
+                }
 
                 Picker("Category", selection: $category) {
                     Text("General").tag("general")
@@ -177,7 +195,7 @@ struct SnippetEditor: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(cue.isEmpty || snippetBody.isEmpty)
+                .disabled(trimmedCue.isEmpty || snippetBody.isEmpty || isDup)
             }
             .padding(.horizontal)
         }

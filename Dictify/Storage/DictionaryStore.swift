@@ -27,9 +27,23 @@ final class DictionaryStore: ObservableObject {
         return TokenBudget.fit(formatted, joiner: ", ", maxTokens: maxTokens)
     }
 
-    func add(_ entry: DictionaryEntry) {
+    /// True when a *different* entry already uses this term (case-insensitive,
+    /// trimmed). Drives editor validation and the add/update guards.
+    func termExists(_ term: String, excluding id: UUID? = nil) -> Bool {
+        let needle = term.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !needle.isEmpty else { return false }
+        return entries.contains {
+            $0.id != id && $0.term.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == needle
+        }
+    }
+
+    /// Appends unless the term already exists. Returns true when added.
+    @discardableResult
+    func add(_ entry: DictionaryEntry) -> Bool {
+        guard !termExists(entry.term, excluding: entry.id) else { return false }
         entries.append(entry)
         save()
+        return true
     }
 
     /// Append auto-learned correction terms, skipping any already present
@@ -49,11 +63,14 @@ final class DictionaryStore: ObservableObject {
         return added
     }
 
-    func update(_ entry: DictionaryEntry) {
+    @discardableResult
+    func update(_ entry: DictionaryEntry) -> Bool {
+        guard !termExists(entry.term, excluding: entry.id) else { return false }
         if let index = entries.firstIndex(where: { $0.id == entry.id }) {
             entries[index] = entry
             save()
         }
+        return true
     }
 
     func remove(_ entry: DictionaryEntry) {

@@ -75,6 +75,7 @@ struct DictionarySettingsView: View {
         .background(Color.appWindowBackground)
         .sheet(isPresented: $showingAddSheet) {
             DictionaryEntryEditor(
+                isDuplicate: { store?.termExists($0, excluding: nil) ?? false },
                 onSave: { entry in
                     store?.add(entry)
                     showingAddSheet = false
@@ -85,6 +86,7 @@ struct DictionarySettingsView: View {
         .sheet(item: $editingEntry) { entry in
             DictionaryEntryEditor(
                 entry: entry,
+                isDuplicate: { store?.termExists($0, excluding: entry.id) ?? false },
                 onSave: { updated in
                     store?.update(updated)
                     editingEntry = nil
@@ -100,16 +102,25 @@ struct DictionaryEntryEditor: View {
     @State private var category: String
     @State private var phoneticHint: String
     private let existingId: UUID?
+    let isDuplicate: (String) -> Bool
     let onSave: (DictionaryEntry) -> Void
     let onCancel: () -> Void
 
-    init(entry: DictionaryEntry? = nil, onSave: @escaping (DictionaryEntry) -> Void, onCancel: @escaping () -> Void) {
+    init(entry: DictionaryEntry? = nil, isDuplicate: @escaping (String) -> Bool, onSave: @escaping (DictionaryEntry) -> Void, onCancel: @escaping () -> Void) {
         _term = State(initialValue: entry?.term ?? "")
         _category = State(initialValue: entry?.category ?? "general")
         _phoneticHint = State(initialValue: entry?.phoneticHint ?? "")
         existingId = entry?.id
+        self.isDuplicate = isDuplicate
         self.onSave = onSave
         self.onCancel = onCancel
+    }
+
+    private var trimmedTerm: String {
+        term.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    private var isDup: Bool {
+        !trimmedTerm.isEmpty && isDuplicate(trimmedTerm)
     }
 
     var body: some View {
@@ -121,6 +132,12 @@ struct DictionaryEntryEditor: View {
             Form {
                 TextField("Term", text: $term)
                     .creamFormRow()
+                if isDup {
+                    Text("A term with this name already exists.")
+                        .font(.caption)
+                        .foregroundStyle(Color.appAlert)
+                        .creamFormRow()
+                }
                 Picker("Category", selection: $category) {
                     Text("General").tag("general")
                     Text("Technical").tag("technical")
@@ -149,7 +166,7 @@ struct DictionaryEntryEditor: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(term.isEmpty)
+                .disabled(trimmedTerm.isEmpty || isDup)
             }
             .padding(.horizontal)
         }

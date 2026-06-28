@@ -28,16 +28,33 @@ final class SnippetStore: ObservableObject {
         return lines.joined(separator: "\n")
     }
 
-    func add(_ snippet: Snippet) {
-        snippets.append(snippet)
-        save()
+    /// True when a *different* snippet already uses this cue (case-insensitive,
+    /// trimmed). Drives editor validation and the add/update guards.
+    func cueExists(_ cue: String, excluding id: UUID? = nil) -> Bool {
+        let needle = cue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !needle.isEmpty else { return false }
+        return snippets.contains {
+            $0.id != id && $0.cue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == needle
+        }
     }
 
-    func update(_ snippet: Snippet) {
+    /// Appends unless the cue already exists. Returns true when added.
+    @discardableResult
+    func add(_ snippet: Snippet) -> Bool {
+        guard !cueExists(snippet.cue, excluding: snippet.id) else { return false }
+        snippets.append(snippet)
+        save()
+        return true
+    }
+
+    @discardableResult
+    func update(_ snippet: Snippet) -> Bool {
+        guard !cueExists(snippet.cue, excluding: snippet.id) else { return false }
         if let index = snippets.firstIndex(where: { $0.id == snippet.id }) {
             snippets[index] = snippet
             save()
         }
+        return true
     }
 
     func remove(_ snippet: Snippet) {
