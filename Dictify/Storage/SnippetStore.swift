@@ -42,6 +42,8 @@ final class SnippetStore: ObservableObject {
     @discardableResult
     func add(_ snippet: Snippet) -> Bool {
         guard !cueExists(snippet.cue, excluding: snippet.id) else { return false }
+        var snippet = snippet
+        snippet.cue = snippet.cue.trimmingCharacters(in: .whitespacesAndNewlines)
         snippets.append(snippet)
         save()
         return true
@@ -51,6 +53,8 @@ final class SnippetStore: ObservableObject {
     func update(_ snippet: Snippet) -> Bool {
         guard !cueExists(snippet.cue, excluding: snippet.id) else { return false }
         if let index = snippets.firstIndex(where: { $0.id == snippet.id }) {
+            var snippet = snippet
+            snippet.cue = snippet.cue.trimmingCharacters(in: .whitespacesAndNewlines)
             snippets[index] = snippet
             save()
         }

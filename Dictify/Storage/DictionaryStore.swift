@@ -41,6 +41,8 @@ final class DictionaryStore: ObservableObject {
     @discardableResult
     func add(_ entry: DictionaryEntry) -> Bool {
         guard !termExists(entry.term, excluding: entry.id) else { return false }
+        var entry = entry
+        entry.term = entry.term.trimmingCharacters(in: .whitespacesAndNewlines)
         entries.append(entry)
         save()
         return true
@@ -50,10 +52,11 @@ final class DictionaryStore: ObservableObject {
     /// (case-insensitive by term). Saves once. Returns the entries added.
     @discardableResult
     func addLearned(_ terms: [String]) -> [DictionaryEntry] {
-        let existing = Set(entries.map { $0.term.lowercased() })
         var added: [DictionaryEntry] = []
-        for term in terms where !existing.contains(term.lowercased()) {
-            let entry = DictionaryEntry(term: term, source: .learned)
+        for term in terms {
+            let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !termExists(trimmed) else { continue }
+            let entry = DictionaryEntry(term: trimmed, source: .learned)
             entries.append(entry)
             added.append(entry)
         }
@@ -67,6 +70,8 @@ final class DictionaryStore: ObservableObject {
     func update(_ entry: DictionaryEntry) -> Bool {
         guard !termExists(entry.term, excluding: entry.id) else { return false }
         if let index = entries.firstIndex(where: { $0.id == entry.id }) {
+            var entry = entry
+            entry.term = entry.term.trimmingCharacters(in: .whitespacesAndNewlines)
             entries[index] = entry
             save()
         }
