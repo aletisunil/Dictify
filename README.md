@@ -39,7 +39,8 @@ Paste your key once — Dictify stores it in the macOS Keychain and verifies it 
 
 ### The rest
 
-- **Personal dictionary** — teach Dictify your custom terms, names, and phonetic hints; they're injected into the Whisper prompt to bias recognition.
+- **Personal dictionary** — teach Dictify your custom terms, names, and phonetic hints; they're injected into the Whisper prompt to bias recognition, and also used by GPT-OSS to fix clear sound-alikes during refinement.
+- **Auto-learning dictionary** — when you fix a mis-transcribed word in place right after dictating, Dictify notices the edit and adds the corrected term to your dictionary (marked **Learned**), so it gets it right next time. Near-miss single-word fixes only; works on the direct-insertion path and can be toggled off.
 - **Direct text insertion** — uses macOS Accessibility APIs to type into any text field; falls back to paste if a field is read-only.
 - **Dictation commands** — spoken punctuation ("period", "new paragraph", etc.).
 - **Configurable activation** — choose `fn`, record any custom key/combo, or enable the middle-mouse button as an extra trigger. Adjust the tap-vs-hold threshold to taste.
