@@ -415,16 +415,7 @@ struct CreamSecureField: View {
             .buttonStyle(.plain)
             .help(isRevealed ? "Hide key" : "Show key")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.primary.opacity(0.06))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.appHairline, lineWidth: 1)
-        )
+        .creamFieldCapsule()
     }
 }
 
@@ -445,6 +436,13 @@ struct CreamTextField: View {
         // space wasn't registered.
         AppKitSingleLineField(placeholder: placeholder, text: $text)
             .frame(maxWidth: .infinity)
+            .creamFieldCapsule()
+    }
+}
+
+private struct CreamFieldCapsule: ViewModifier {
+    func body(content: Content) -> some View {
+        content
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(
@@ -455,6 +453,12 @@ struct CreamTextField: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(Color.appHairline, lineWidth: 1)
             )
+    }
+}
+
+private extension View {
+    func creamFieldCapsule() -> some View {
+        modifier(CreamFieldCapsule())
     }
 }
 
