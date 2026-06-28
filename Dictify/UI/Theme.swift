@@ -393,11 +393,58 @@ struct SearchField: View {
 struct CreamSecureField: View {
     let placeholder: String
     @Binding var text: String
+    @State private var isRevealed = false
 
     var body: some View {
-        SecureField(placeholder, text: $text)
+        HStack(spacing: 6) {
+            Group {
+                if isRevealed {
+                    TextField(placeholder, text: $text)
+                } else {
+                    SecureField(placeholder, text: $text)
+                }
+            }
             .textFieldStyle(.plain)
             .font(.system(size: 13))
+
+            Button { isRevealed.toggle() } label: {
+                Image(systemName: isRevealed ? "eye.slash" : "eye")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help(isRevealed ? "Hide key" : "Show key")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.primary.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.appHairline, lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Text field
+
+/// A TextField styled to match the cream palette — a tinted capsule with a
+/// hairline border like `CreamSecureField`, so the editable area (and the
+/// cursor / spaces being typed) is clearly bounded instead of blending into
+/// the surrounding form row.
+struct CreamTextField: View {
+    let placeholder: String
+    @Binding var text: String
+
+    var body: some View {
+        // AppKit-backed so a typed trailing space renders and advances the caret
+        // immediately. SwiftUI's TextField on macOS defers drawing a trailing
+        // space until a following glyph gives it width, making it look like the
+        // space wasn't registered.
+        AppKitSingleLineField(placeholder: placeholder, text: $text)
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(
@@ -408,5 +455,45 @@ struct CreamSecureField: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(Color.appHairline, lineWidth: 1)
             )
+    }
+}
+
+/// Borderless single-line `NSTextField` wrapper. Used by `CreamTextField` so the
+/// caret tracks trailing whitespace the way every native macOS text field does.
+private struct AppKitSingleLineField: NSViewRepresentable {
+    let placeholder: String
+    @Binding var text: String
+
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField()
+        field.isBordered = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.font = .systemFont(ofSize: 13)
+        field.placeholderString = placeholder
+        field.delegate = context.coordinator
+        field.lineBreakMode = .byClipping
+        field.usesSingleLineMode = true
+        field.cell?.wraps = false
+        field.cell?.isScrollable = true
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        return field
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        if nsView.stringValue != text { nsView.stringValue = text }
+        nsView.placeholderString = placeholder
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        private let text: Binding<String>
+        init(text: Binding<String>) { self.text = text }
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let field = obj.object as? NSTextField else { return }
+            text.wrappedValue = field.stringValue
+        }
     }
 }

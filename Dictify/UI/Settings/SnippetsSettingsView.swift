@@ -137,7 +137,7 @@ struct SnippetEditor: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Form {
-                TextField("Spoken Cue (e.g., \"calendar link\")", text: $cue)
+                CreamTextField(placeholder: "Spoken Cue (e.g., \"calendar link\")", text: $cue)
                     .creamFormRow()
 
                 if isDup {

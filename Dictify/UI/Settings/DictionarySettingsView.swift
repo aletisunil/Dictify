@@ -130,7 +130,7 @@ struct DictionaryEntryEditor: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Form {
-                TextField("Term", text: $term)
+                CreamTextField(placeholder: "Term", text: $term)
                     .creamFormRow()
                 if isDup {
                     Text("A term with this name already exists.")
@@ -145,7 +145,7 @@ struct DictionaryEntryEditor: View {
                     Text("Brand").tag("brand")
                 }
                 .creamFormRow()
-                TextField("Phonetic Hint (optional)", text: $phoneticHint)
+                CreamTextField(placeholder: "Phonetic Hint (optional)", text: $phoneticHint)
                     .creamFormRow()
             }
             .formStyle(.grouped)
