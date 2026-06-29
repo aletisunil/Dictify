@@ -9,6 +9,7 @@ enum Log {
     static let subsystem = "com.dictify.app"
 
     static let audio = Logger(subsystem: subsystem, category: "audio")
+    static let media = Logger(subsystem: subsystem, category: "media")
     static let api = Logger(subsystem: subsystem, category: "api")
     static let permissions = Logger(subsystem: subsystem, category: "permissions")
     static let hotkey = Logger(subsystem: subsystem, category: "hotkey")

@@ -44,7 +44,15 @@ enum Constants {
         static var appSupportDirectory: URL {
             let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
                 ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+            // Debug builds use a separate folder so running from Xcode never
+            // reads or overwrites the installed release's dictionary/snippets/
+            // history. The app isn't sandboxed, so both share the same bundle id
+            // and would otherwise clobber each other's data.
+            #if DEBUG
+            return appSupport.appendingPathComponent("Dictify-Debug")
+            #else
             return appSupport.appendingPathComponent("Dictify")
+            #endif
         }
         static var dictionaryFileURL: URL { appSupportDirectory.appendingPathComponent("dictionary.json") }
         static var snippetsFileURL: URL { appSupportDirectory.appendingPathComponent("snippets.json") }

@@ -45,9 +45,13 @@ actor TranscriptionPipeline {
     private let correctionMonitor: CorrectionMonitor
     private let settings: DictifySettings
     private let elapsedTimer: ElapsedTimer
+    private let mediaController: MediaPlaybackController
 
     private var maxRecordingTask: Task<Void, Never>?
     private var processingTask: Task<Void, Never>?
+    /// True when we paused system media for the current dictation, so we only
+    /// resume what we actually paused.
+    private var didPauseMedia = false
 
     init(appState: AppState,
          keychainManager: KeychainManager,
@@ -70,6 +74,7 @@ actor TranscriptionPipeline {
         self.correctionMonitor = correctionMonitor
         self.settings = appState.settings
         self.elapsedTimer = MainActor.assumeIsolated { ElapsedTimer() }
+        self.mediaController = MainActor.assumeIsolated { MediaPlaybackController() }
     }
 
     func startRecording() async {
@@ -117,9 +122,27 @@ actor TranscriptionPipeline {
                 appState.playSound("Tink")
             }
             await startElapsedTimer()
+
+            // Pause system media after the recording cue so the helper subprocess
+            // doesn't delay the "Tink". We only resume what we pause (`didPauseMedia`).
+            if await MainActor.run(body: { settings.pauseMediaDuringDictation }) {
+                let paused = await mediaController.pauseIfPlaying()
+                if paused {
+                    // The pause is async: a near-instant stop can run (actor
+                    // reentrancy) while we await above, find `didPauseMedia`
+                    // still false, and skip its resume. If recording already
+                    // ended, resume immediately so media isn't left muted.
+                    if audioEngine.isRecording {
+                        didPauseMedia = true
+                    } else {
+                        await mediaController.resumeIfWePaused(true)
+                    }
+                }
+            }
         } catch {
             audioEngine.stopCapture()
             cancelMaxDurationStop()
+            await resumeMediaIfNeeded()
             Log.pipeline.error("Failed to start capture: \(error.localizedDescription, privacy: .public)")
             await MainActor.run {
                 appState.pipelineState = .error("Microphone unavailable")
@@ -133,6 +156,7 @@ actor TranscriptionPipeline {
     func stopRecording() async {
         guard audioEngine.isRecording else {
             await stopElapsedTimer()
+            await resumeMediaIfNeeded()
             await MainActor.run {
                 if case .recording = appState.pipelineState {
                     appState.pipelineState = .idle
@@ -148,6 +172,9 @@ actor TranscriptionPipeline {
 
         let duration = audioEngine.recordingDuration
         let pcmData = audioEngine.stopCapture()
+
+        // Resume media as soon as capture ends — don't wait on transcription.
+        await resumeMediaIfNeeded()
 
         await MainActor.run {
             appState.playSound("Pop")
@@ -166,6 +193,13 @@ actor TranscriptionPipeline {
         processingTask = Task { [weak self] in
             await self?.processCapturedAudio(pcmData: pcmData, duration: duration)
         }
+    }
+
+    /// Resume system media iff we paused it for this dictation. Idempotent.
+    private func resumeMediaIfNeeded() async {
+        guard didPauseMedia else { return }
+        didPauseMedia = false
+        await mediaController.resumeIfWePaused(true)
     }
 
     private func processCapturedAudio(pcmData: Data, duration: TimeInterval) async {
@@ -330,6 +364,7 @@ actor TranscriptionPipeline {
         cancelMaxDurationStop()
         audioEngine.stopCapture()
         await stopElapsedTimer()
+        await resumeMediaIfNeeded()
         let message = reason.userMessage
         await MainActor.run {
             appState.pipelineState = .error(message)

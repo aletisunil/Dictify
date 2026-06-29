@@ -36,6 +36,11 @@ final class DictifySettings {
         set { defaults.set(newValue, forKey: "soundEffectsEnabled") }
     }
 
+    var pauseMediaDuringDictation: Bool {
+        get { defaults.object(forKey: "pauseMediaDuringDictation") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "pauseMediaDuringDictation") }
+    }
+
     var showElapsedTime: Bool {
         get { defaults.object(forKey: "showElapsedTime") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "showElapsedTime") }

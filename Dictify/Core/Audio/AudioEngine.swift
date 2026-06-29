@@ -308,7 +308,7 @@ final class AudioEngine: @unchecked Sendable {
                 stateQueue.sync { tapInstalled = false }
                 engine.reset()
                 Log.audio.notice(
-                    "Engine start attempt \(attempt, privacy: .public)/\(maxAttempts, privacy: .public) failed (\(error.localizedDescription, privacy: .public)); retrying after route settles"
+                    "Engine start attempt \(attempt, privacy: .public)/\(maxAttempts, privacy: .public) failed at input rate \(inputFormat.sampleRate, privacy: .public) Hz (\(error.localizedDescription, privacy: .public)); retrying after route settles"
                 )
                 if attempt < maxAttempts {
                     // Let the provoked Bluetooth route change settle before retrying.
@@ -468,6 +468,97 @@ final class AudioEngine: @unchecked Sendable {
         )
         if status != noErr {
             Log.audio.error("Failed to set input device (\(status, privacy: .public)); using default")
+            return
+        }
+
+        // Switching `CurrentDevice` flips the underlying device but leaves the
+        // AUHAL's cached output stream format at the previous device's rate
+        // (e.g. 48 kHz). A `format: nil` tap then adopts that stale rate while
+        // the new device runs at, say, 44.1 kHz — graph init aborts with -10868
+        // before any buffer arrives. Re-point the node's output format at the
+        // new device's actual rate so the tap and graph agree.
+        reconcileInputFormat(audioUnit)
+    }
+
+    /// Make the input AUHAL's client (output-scope) format on the input element
+    /// match the device's live hardware format, so `inputNode.outputFormat(forBus:0)`
+    /// — and the `format: nil` tap built from it — agree with the HW. Without this,
+    /// a device switch leaves the client format at the prior device's rate (e.g.
+    /// 48 kHz over a 44.1 kHz HW input) and graph init aborts with -10868.
+    ///
+    /// AUHAL element 1 is the input (microphone) bus: input scope = the hardware
+    /// format, output scope = the format delivered to the app. (Element 0 is the
+    /// disabled speaker bus — setting a format there returns -10868.)
+    private func reconcileInputFormat(_ audioUnit: AudioUnit) {
+        let inputElement: AudioUnitElement = 1
+
+        // Read the true hardware format off the input scope of the input element.
+        var hwFormat = AudioStreamBasicDescription()
+        var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+        let getStatus = AudioUnitGetProperty(
+            audioUnit,
+            kAudioUnitProperty_StreamFormat,
+            kAudioUnitScope_Input,
+            inputElement,
+            &hwFormat,
+            &size
+        )
+        guard getStatus == noErr, hwFormat.mSampleRate > 0 else {
+            Log.audio.error("Failed to read HW input format (\(getStatus, privacy: .public))")
+            return
+        }
+
+        // Read the current client format; skip if the sample rate already agrees.
+        var clientFormat = AudioStreamBasicDescription()
+        var clientSize = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+        guard AudioUnitGetProperty(
+            audioUnit,
+            kAudioUnitProperty_StreamFormat,
+            kAudioUnitScope_Output,
+            inputElement,
+            &clientFormat,
+            &clientSize
+        ) == noErr else { return }
+        guard clientFormat.mSampleRate != hwFormat.mSampleRate else { return }
+
+        // Match the client rate to HW; keep our existing channel/packetisation by
+        // copying only the sample rate (AVAudioEngine derives the rest).
+        clientFormat.mSampleRate = hwFormat.mSampleRate
+        let setStatus = AudioUnitSetProperty(
+            audioUnit,
+            kAudioUnitProperty_StreamFormat,
+            kAudioUnitScope_Output,
+            inputElement,
+            &clientFormat,
+            clientSize
+        )
+        if setStatus != noErr {
+            // Non-fatal: fall through to the retry loop, which may still settle.
+            Log.audio.error("Failed to set client input format to \(hwFormat.mSampleRate, privacy: .public) Hz (\(setStatus, privacy: .public))")
+        } else {
+            Log.audio.notice("Reconciled input format to \(hwFormat.mSampleRate, privacy: .public) Hz")
+        }
+    }
+
+    /// Release the input node's device binding by pointing the AUHAL at
+    /// `kAudioObjectUnknown`. Without this, the engine keeps the chosen device
+    /// claimed after `stop()`, which parks Bluetooth mics (e.g. AirPods) in
+    /// degraded 24 kHz HFP — system audio stays muffled until something else
+    /// resets the route. Releasing the binding lets macOS return them to
+    /// high-quality A2DP. Harmless for wired/built-in devices (resets to default).
+    private func unbindInputDevice() {
+        guard let audioUnit = engine.inputNode.audioUnit else { return }
+        var unknown = AudioDeviceID(kAudioObjectUnknown)
+        let status = AudioUnitSetProperty(
+            audioUnit,
+            kAudioOutputUnitProperty_CurrentDevice,
+            kAudioUnitScope_Global,
+            0,
+            &unknown,
+            UInt32(MemoryLayout<AudioDeviceID>.size)
+        )
+        if status != noErr {
+            Log.audio.error("Failed to unbind input device (\(status, privacy: .public))")
         }
     }
 
@@ -547,6 +638,7 @@ final class AudioEngine: @unchecked Sendable {
         if tapped {
             engine.inputNode.removeTap(onBus: 0)
         }
+        unbindInputDevice()
         if engine.isRunning {
             engine.stop()
         }
@@ -568,6 +660,7 @@ final class AudioEngine: @unchecked Sendable {
         if tapped {
             engine.inputNode.removeTap(onBus: 0)
         }
+        unbindInputDevice()
         if engine.isRunning {
             engine.stop()
         }

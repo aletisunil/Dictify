@@ -15,6 +15,7 @@ struct GeneralSettingsView: View {
     @AppStorage("autoLearnEnabled") private var autoLearnEnabled: Bool = false
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
     @AppStorage("soundEffectsEnabled") private var soundEffectsEnabled: Bool = true
+    @AppStorage("pauseMediaDuringDictation") private var pauseMediaDuringDictation: Bool = true
     @AppStorage("showElapsedTime") private var showElapsedTime: Bool = true
     @AppStorage("tapHoldThreshold") private var tapHoldThreshold: Double = 0.2
     @AppStorage("showInDock") private var showInDock: Bool = true
@@ -190,6 +191,11 @@ struct GeneralSettingsView: View {
                     }
 
                 Toggle("Sound Effects", isOn: $soundEffectsEnabled)
+
+                Toggle("Pause Media While Dictating", isOn: $pauseMediaDuringDictation)
+                Text("Pauses currently-playing audio/video when you start dictating and resumes it after.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 Toggle("Show Elapsed Time", isOn: $showElapsedTime)
 

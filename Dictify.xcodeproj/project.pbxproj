@@ -56,6 +56,8 @@
 		A10000070 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000070 /* Theme.swift */; };
 		A10000080 /* CorrectionLearner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000080 /* CorrectionLearner.swift */; };
 		A10000081 /* CorrectionMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000081 /* CorrectionMonitor.swift */; };
+		A10000090 /* MediaPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000090 /* MediaPlaybackController.swift */; };
+		E0EA9DCA2FF218C50041D808 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DC92FF218C50041D808 /* MediaRemoteAdapter */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -111,6 +113,7 @@
 		B10000070 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		B10000080 /* CorrectionLearner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionLearner.swift; sourceTree = "<group>"; };
 		B10000081 /* CorrectionMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionMonitor.swift; sourceTree = "<group>"; };
+		B10000090 /* MediaPlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPlaybackController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -118,6 +121,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E0EA9DCA2FF218C50041D808 /* MediaRemoteAdapter in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -148,16 +152,6 @@
 			path = Dictify;
 			sourceTree = "<group>";
 		};
-		D10000030 /* Diagnostics */ = {
-			isa = PBXGroup;
-			children = (
-				B10000060 /* LogCollector.swift */,
-				B10000061 /* LogRedactor.swift */,
-				B10000062 /* DiagnosticsBundle.swift */,
-			);
-			path = Diagnostics;
-			sourceTree = "<group>";
-		};
 		D10000003 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -182,15 +176,6 @@
 			path = Core;
 			sourceTree = "<group>";
 		};
-		D10000021 /* Dictionary */ = {
-			isa = PBXGroup;
-			children = (
-				B10000080 /* CorrectionLearner.swift */,
-				B10000081 /* CorrectionMonitor.swift */,
-			);
-			path = Dictionary;
-			sourceTree = "<group>";
-		};
 		D10000005 /* HotKey */ = {
 			isa = PBXGroup;
 			children = (
@@ -203,6 +188,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000005 /* AudioEngine.swift */,
+				B10000090 /* MediaPlaybackController.swift */,
 				B10000006 /* AudioLevelProvider.swift */,
 			);
 			path = Audio;
@@ -342,6 +328,25 @@
 			path = Pipeline;
 			sourceTree = "<group>";
 		};
+		D10000021 /* Dictionary */ = {
+			isa = PBXGroup;
+			children = (
+				B10000080 /* CorrectionLearner.swift */,
+				B10000081 /* CorrectionMonitor.swift */,
+			);
+			path = Dictionary;
+			sourceTree = "<group>";
+		};
+		D10000030 /* Diagnostics */ = {
+			isa = PBXGroup;
+			children = (
+				B10000060 /* LogCollector.swift */,
+				B10000061 /* LogRedactor.swift */,
+				B10000062 /* DiagnosticsBundle.swift */,
+			);
+			path = Diagnostics;
+			sourceTree = "<group>";
+		};
 		D10000050 /* Main */ = {
 			isa = PBXGroup;
 			children = (
@@ -402,6 +407,9 @@
 				Base,
 			);
 			mainGroup = D10000001;
+			packageReferences = (
+				E0EA9DC82FF218C50041D808 /* XCRemoteSwiftPackageReference "mediaremote-adapter" */,
+			);
 			productRefGroup = D10000099 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -433,6 +441,7 @@
 				A10000003 /* AppState.swift in Sources */,
 				A10000004 /* KeyMonitor.swift in Sources */,
 				A10000005 /* AudioEngine.swift in Sources */,
+				A10000090 /* MediaPlaybackController.swift in Sources */,
 				A10000006 /* AudioLevelProvider.swift in Sources */,
 				A10000007 /* GroqClient.swift in Sources */,
 				A10000008 /* WhisperService.swift in Sources */,
@@ -611,7 +620,7 @@
 				CODE_SIGN_ENTITLEMENTS = Dictify/Dictify.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -621,7 +630,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.12;
+				MARKETING_VERSION = 1.13;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app;
 				PRODUCT_NAME = Dictify;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -638,7 +647,7 @@
 				CODE_SIGN_ENTITLEMENTS = Dictify/Dictify.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 12;
+				CURRENT_PROJECT_VERSION = 13;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -648,7 +657,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.12;
+				MARKETING_VERSION = 1.13;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app;
 				PRODUCT_NAME = Dictify;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -679,6 +688,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E0EA9DC82FF218C50041D808 /* XCRemoteSwiftPackageReference "mediaremote-adapter" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ejbills/mediaremote-adapter";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E0EA9DC92FF218C50041D808 /* MediaRemoteAdapter */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0EA9DC82FF218C50041D808 /* XCRemoteSwiftPackageReference "mediaremote-adapter" */;
+			productName = MediaRemoteAdapter;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E10000010 /* Project object */;
 }
