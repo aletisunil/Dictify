@@ -58,6 +58,7 @@
 		A10000081 /* CorrectionMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000081 /* CorrectionMonitor.swift */; };
 		A10000090 /* MediaPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000090 /* MediaPlaybackController.swift */; };
 		E0EA9DCA2FF218C50041D808 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DC92FF218C50041D808 /* MediaRemoteAdapter */; };
+		E0EA9DCB2FF218C50041D808 /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DC92FF218C50041D808 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -126,6 +127,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C10000002 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				E0EA9DCB2FF218C50041D808 /* MediaRemoteAdapter in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXGroup section */
 		D10000001 = {
@@ -372,6 +387,7 @@
 			buildPhases = (
 				E10000002 /* Sources */,
 				C10000001 /* Frameworks */,
+				C10000002 /* Embed Frameworks */,
 				E10000003 /* Resources */,
 			);
 			buildRules = (
@@ -620,7 +636,7 @@
 				CODE_SIGN_ENTITLEMENTS = Dictify/Dictify.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -630,7 +646,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.13;
+				MARKETING_VERSION = 1.14;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app;
 				PRODUCT_NAME = Dictify;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -647,7 +663,7 @@
 				CODE_SIGN_ENTITLEMENTS = Dictify/Dictify.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -657,7 +673,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.13;
+				MARKETING_VERSION = 1.14;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app;
 				PRODUCT_NAME = Dictify;
 				SWIFT_EMIT_LOC_STRINGS = YES;
