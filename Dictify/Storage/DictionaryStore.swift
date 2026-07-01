@@ -18,12 +18,7 @@ final class DictionaryStore: ObservableObject {
 
     func promptString(maxTokens: Int) -> String {
         let sorted = entries.sorted { $0.addedAt > $1.addedAt }
-        let formatted: [String] = sorted.map { entry in
-            if let hint = entry.phoneticHint {
-                return "\(entry.term) (\(hint))"
-            }
-            return entry.term
-        }
+        let formatted = sorted.map { $0.term }
         return TokenBudget.fit(formatted, joiner: ", ", maxTokens: maxTokens)
     }
 
@@ -46,24 +41,6 @@ final class DictionaryStore: ObservableObject {
         entries.append(entry)
         save()
         return true
-    }
-
-    /// Append auto-learned correction terms, skipping any already present
-    /// (case-insensitive by term). Saves once. Returns the entries added.
-    @discardableResult
-    func addLearned(_ terms: [String]) -> [DictionaryEntry] {
-        var added: [DictionaryEntry] = []
-        for term in terms {
-            let trimmed = term.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, !termExists(trimmed) else { continue }
-            let entry = DictionaryEntry(term: trimmed, source: .learned)
-            entries.append(entry)
-            added.append(entry)
-        }
-        if !added.isEmpty {
-            save()
-        }
-        return added
     }
 
     @discardableResult

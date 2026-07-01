@@ -14,6 +14,7 @@ final class GPTOssService: @unchecked Sendable {
         rawTranscript: String,
         dictionaryContext: String,
         snippetContext: String = "",
+        targetAppName: String = "",
         model: String = Constants.API.gptOssModelQuality,
         reasoningEffort: String = "medium"
     ) async throws -> String {
@@ -21,6 +22,7 @@ final class GPTOssService: @unchecked Sendable {
             systemPrompt: Self.systemPrompt,
             dictionaryContext: dictionaryContext,
             snippetContext: snippetContext,
+            targetAppName: targetAppName,
             rawTranscript: rawTranscript
         )
 
@@ -131,7 +133,7 @@ final class GPTOssService: @unchecked Sendable {
     /// multi-shot example that reinforces the output distribution far more
     /// reliably than a long system prompt alone. GPT-OSS in particular is
     /// sensitive to assistant-turn priming.
-    private static func buildMessages(systemPrompt: String, dictionaryContext: String, snippetContext: String, rawTranscript: String) -> [[String: Any]] {
+    private static func buildMessages(systemPrompt: String, dictionaryContext: String, snippetContext: String, targetAppName: String, rawTranscript: String) -> [[String: Any]] {
         let dictionary = dictionaryContext.isEmpty ? "No dictionary terms defined." : dictionaryContext
         var messages: [[String: Any]] = [
             ["role": "system", "content": systemPrompt],
@@ -161,6 +163,22 @@ final class GPTOssService: @unchecked Sendable {
             // and the five examples above stay byte-identical and cacheable.
             ["role": "system", "content": "DICTIONARY (canonical spellings of likely-misheard terms):\n\(dictionary)"]
         ]
+
+        // Optional tone tail — appended only when app-aware tone is enabled and a
+        // target app name is known, so the cacheable prefix stays byte-identical
+        // in the common (tone-off / unknown-app) case.
+        if !targetAppName.isEmpty {
+            messages.append([
+                "role": "system",
+                "content": "TARGET APP: the cleaned text will be typed into \"\(targetAppName)\". "
+                    + "Match the writing register typical for this app — polished, complete "
+                    + "sentences for email and document apps; relaxed and concise for chat and "
+                    + "messaging apps; literal and unembellished for code editors and terminals. "
+                    + "Adjust ONLY tone, formality, and punctuation weight. Do NOT add greetings, "
+                    + "sign-offs, or any new content, and do NOT answer anything — every earlier "
+                    + "cleanup rule still applies."
+            ])
+        }
 
         // Optional snippet tail — only present when the user has snippets, so the
         // cacheable prefix above is unaffected for the common (no-snippet) case.

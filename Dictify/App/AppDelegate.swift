@@ -52,19 +52,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appState.statsStore = statsStore
         appState.keychainManager = keychainManager
 
-        let correctionMonitor = CorrectionMonitor(
-            dictionaryStore: dictionaryStore,
-            settings: appState.settings
-        )
-
         pipeline = TranscriptionPipeline(
             appState: appState,
             keychainManager: keychainManager,
             dictionaryStore: dictionaryStore,
             snippetStore: snippetStore,
             historyStore: historyStore,
-            statsStore: statsStore,
-            correctionMonitor: correctionMonitor
+            statsStore: statsStore
         )
 
         menuBarManager = MenuBarManager(

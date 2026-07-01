@@ -42,7 +42,6 @@ actor TranscriptionPipeline {
     private let snippetStore: SnippetStore
     private let historyStore: HistoryStore
     private let statsStore: StatsStore
-    private let correctionMonitor: CorrectionMonitor
     private let settings: DictifySettings
     private let elapsedTimer: ElapsedTimer
     private let mediaController: MediaPlaybackController
@@ -52,14 +51,31 @@ actor TranscriptionPipeline {
     /// True when we paused system media for the current dictation, so we only
     /// resume what we actually paused.
     private var didPauseMedia = false
+    /// Name of the app focused when this dictation started — the app the text
+    /// will be inserted into. Snapshotted at start because focus can move by
+    /// insertion time. Used to tune refinement tone when app-aware tone is on.
+    private var frontmostAppName: String?
+    /// Browsers whose window is a web app, not a native app — the bundle name
+    /// tells us nothing about the register, so tone stays neutral for these.
+    private static let browserBundleIDs: Set<String> = [
+        "com.apple.Safari",
+        "com.apple.SafariTechnologyPreview",
+        "com.google.Chrome",
+        "com.google.Chrome.canary",
+        "com.microsoft.edgemac",
+        "org.mozilla.firefox",
+        "com.brave.Browser",
+        "com.operasoftware.Opera",
+        "company.thebrowser.Browser", // Arc
+        "com.vivaldi.Vivaldi",
+    ]
 
     init(appState: AppState,
          keychainManager: KeychainManager,
          dictionaryStore: DictionaryStore,
          snippetStore: SnippetStore,
          historyStore: HistoryStore,
-         statsStore: StatsStore,
-         correctionMonitor: CorrectionMonitor) {
+         statsStore: StatsStore) {
         self.appState = appState
         self.audioEngine = AudioEngine()
         self.groqClient = GroqClient(keychainManager: keychainManager)
@@ -71,7 +87,6 @@ actor TranscriptionPipeline {
         self.snippetStore = snippetStore
         self.historyStore = historyStore
         self.statsStore = statsStore
-        self.correctionMonitor = correctionMonitor
         self.settings = appState.settings
         self.elapsedTimer = MainActor.assumeIsolated { ElapsedTimer() }
         self.mediaController = MainActor.assumeIsolated { MediaPlaybackController() }
@@ -98,9 +113,17 @@ actor TranscriptionPipeline {
             return
         }
 
-        // Flush any pending auto-learn capture from the previous dictation's
-        // field before we start a new one (the user has likely finished editing).
-        await MainActor.run { correctionMonitor.captureArmed() }
+        // Snapshot the app being dictated into now — focus may move to Dictify's
+        // UI or elsewhere before insertion time. NSWorkspace is main-thread only.
+        // Browsers are left nil: the real target is whatever web app is loaded,
+        // which the app name can't reveal, so refinement stays neutral there.
+        frontmostAppName = await MainActor.run {
+            let app = NSWorkspace.shared.frontmostApplication
+            if let bundleID = app?.bundleIdentifier, Self.browserBundleIDs.contains(bundleID) {
+                return nil
+            }
+            return app?.localizedName
+        }
 
         let preferredDeviceUID = await MainActor.run { settings.selectedInputDeviceUID }
 
@@ -283,10 +306,13 @@ actor TranscriptionPipeline {
                 let speedMode = await MainActor.run { settings.refinementSpeedMode }
                 let model = Self.resolveGPTOssModel(from: speedMode)
                 let effort = Self.resolveReasoningEffort(from: speedMode)
+                let appAware = await MainActor.run { settings.appAwareToneEnabled }
+                let targetApp = appAware ? (frontmostAppName ?? "") : ""
                 finalText = try await gptOssService.refine(
                     rawTranscript: rawTranscript,
                     dictionaryContext: dictContext,
                     snippetContext: snippetCtx,
+                    targetAppName: targetApp,
                     model: model,
                     reasoningEffort: effort
                 )
@@ -414,9 +440,6 @@ actor TranscriptionPipeline {
         if insertionResult.inserted {
             await MainActor.run {
                 AccessibilityInserter.announceInsertionSuccess()
-                // Arm correction monitoring on the field we just inserted into
-                // (AX path only — clipboard targets expose no readable value).
-                correctionMonitor.arm(insertedText: text)
             }
             return
         }

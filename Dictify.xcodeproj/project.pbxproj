@@ -54,8 +54,6 @@
 		A10000061 /* LogRedactor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000061 /* LogRedactor.swift */; };
 		A10000062 /* DiagnosticsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000062 /* DiagnosticsBundle.swift */; };
 		A10000070 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000070 /* Theme.swift */; };
-		A10000080 /* CorrectionLearner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000080 /* CorrectionLearner.swift */; };
-		A10000081 /* CorrectionMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000081 /* CorrectionMonitor.swift */; };
 		A10000090 /* MediaPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000090 /* MediaPlaybackController.swift */; };
 		E0EA9DCA2FF218C50041D808 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DC92FF218C50041D808 /* MediaRemoteAdapter */; };
 		E0EA9DCB2FF218C50041D808 /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DC92FF218C50041D808 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
@@ -112,8 +110,6 @@
 		B10000061 /* LogRedactor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogRedactor.swift; sourceTree = "<group>"; };
 		B10000062 /* DiagnosticsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsBundle.swift; sourceTree = "<group>"; };
 		B10000070 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
-		B10000080 /* CorrectionLearner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionLearner.swift; sourceTree = "<group>"; };
-		B10000081 /* CorrectionMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionMonitor.swift; sourceTree = "<group>"; };
 		B10000090 /* MediaPlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPlaybackController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -346,8 +342,6 @@
 		D10000021 /* Dictionary */ = {
 			isa = PBXGroup;
 			children = (
-				B10000080 /* CorrectionLearner.swift */,
-				B10000081 /* CorrectionMonitor.swift */,
 			);
 			path = Dictionary;
 			sourceTree = "<group>";
@@ -498,8 +492,6 @@
 				A10000060 /* LogCollector.swift in Sources */,
 				A10000061 /* LogRedactor.swift in Sources */,
 				A10000062 /* DiagnosticsBundle.swift in Sources */,
-				A10000080 /* CorrectionLearner.swift in Sources */,
-				A10000081 /* CorrectionMonitor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

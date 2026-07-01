@@ -12,7 +12,7 @@ struct GeneralSettingsView: View {
     @AppStorage("middleMouseEnabled") private var middleMouseEnabled: Bool = false
     @AppStorage("refinementEnabled") private var refinementEnabled: Bool = true
     @AppStorage("refinementSpeedMode") private var refinementSpeedMode: String = "quality"
-    @AppStorage("autoLearnEnabled") private var autoLearnEnabled: Bool = false
+    @AppStorage("appAwareToneEnabled") private var appAwareToneEnabled: Bool = true
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
     @AppStorage("soundEffectsEnabled") private var soundEffectsEnabled: Bool = true
     @AppStorage("pauseMediaDuringDictation") private var pauseMediaDuringDictation: Bool = true
@@ -155,8 +155,9 @@ struct GeneralSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Toggle("Auto-learn from corrections", isOn: $autoLearnEnabled)
-                Text("When you fix a transcription in another app, the corrected word is added to your dictionary. Requires Accessibility permission and works only where text is inserted directly (not clipboard-paste apps like Slack).")
+                Toggle("Match tone to the app", isOn: $appAwareToneEnabled)
+                    .disabled(!refinementEnabled)
+                Text("Adjusts formality to fit the app you're dictating into — polished for email, casual for chat, literal for code. Web apps in a browser stay neutral.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

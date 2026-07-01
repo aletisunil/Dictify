@@ -24,16 +24,6 @@ enum Constants {
         static let tapHoldThreshold: TimeInterval = 0.2
     }
 
-    enum AutoLearn {
-        /// Minimum length of a corrected word worth learning.
-        static let minWordLength = 2
-        /// Max corrected words captured from a single edit (anti-flood guard).
-        static let maxCorrectionsPerCapture = 3
-        /// Floor for the edit-distance acceptance bound. Lets short near-misses
-        /// (e.g. "cloud" → "Claude") through while rejecting unrelated rewordings.
-        static let minEditDistanceBound = 2
-    }
-
     enum Keychain {
         static let service = "com.dictify.api"
         static let apiKeyAccount = "groq-api-key"

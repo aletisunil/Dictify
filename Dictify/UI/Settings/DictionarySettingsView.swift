@@ -54,12 +54,9 @@ struct DictionarySettingsView: View {
                             if index > 0 { Divider().background(Color.appHairline) }
                             LibraryRow(
                                 title: entry.term,
-                                subtitle: entry.phoneticHint.map { "[\($0)]" },
+                                subtitle: nil,
                                 badges: {
                                     Badge(text: entry.category)
-                                    if entry.source == .learned {
-                                        Badge(text: "Learned", tint: .secondary)
-                                    }
                                 },
                                 onEdit: { editingEntry = entry },
                                 onDelete: { store?.remove(entry) }
@@ -100,7 +97,6 @@ struct DictionarySettingsView: View {
 struct DictionaryEntryEditor: View {
     @State private var term: String
     @State private var category: String
-    @State private var phoneticHint: String
     private let existingId: UUID?
     let isDuplicate: (String) -> Bool
     let onSave: (DictionaryEntry) -> Void
@@ -109,7 +105,6 @@ struct DictionaryEntryEditor: View {
     init(entry: DictionaryEntry? = nil, isDuplicate: @escaping (String) -> Bool, onSave: @escaping (DictionaryEntry) -> Void, onCancel: @escaping () -> Void) {
         _term = State(initialValue: entry?.term ?? "")
         _category = State(initialValue: entry?.category ?? "general")
-        _phoneticHint = State(initialValue: entry?.phoneticHint ?? "")
         existingId = entry?.id
         self.isDuplicate = isDuplicate
         self.onSave = onSave
@@ -145,8 +140,6 @@ struct DictionaryEntryEditor: View {
                     Text("Brand").tag("brand")
                 }
                 .creamFormRow()
-                CreamTextField(placeholder: "Phonetic Hint (optional)", text: $phoneticHint)
-                    .creamFormRow()
             }
             .formStyle(.grouped)
             .creamFormBackground()
@@ -159,8 +152,7 @@ struct DictionaryEntryEditor: View {
                     let entry = DictionaryEntry(
                         id: existingId ?? UUID(),
                         term: term,
-                        category: category,
-                        phoneticHint: phoneticHint.isEmpty ? nil : phoneticHint
+                        category: category
                     )
                     onSave(entry)
                 }
