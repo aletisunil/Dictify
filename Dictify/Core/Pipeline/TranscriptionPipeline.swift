@@ -48,6 +48,18 @@ actor TranscriptionPipeline {
 
     private var maxRecordingTask: Task<Void, Never>?
     private var processingTask: Task<Void, Never>?
+    /// Monotonic token identifying the latest start/stop/cancel/interruption
+    /// transition. `startRecording` snapshots it and re-checks after suspension
+    /// points: a mismatch means another transition interleaved via actor
+    /// reentrancy and now owns the pipeline state.
+    private var startGeneration = 0
+    /// Inputs `startRecording` needs from the main actor, snapshotted in a
+    /// single hop so the hotkey→capture path pays one context switch, not four.
+    private struct StartContext {
+        let frontmostAppName: String?
+        let preferredDeviceUID: String
+        let pauseMediaDuringDictation: Bool
+    }
     /// True when we paused system media for the current dictation, so we only
     /// resume what we actually paused.
     private var didPauseMedia = false
@@ -92,44 +104,80 @@ actor TranscriptionPipeline {
         self.mediaController = MainActor.assumeIsolated { MediaPlaybackController() }
     }
 
+    /// See `AudioEngine.prewarm()` — called once at launch after permissions
+    /// are confirmed so the first hotkey trigger skips the CoreAudio cold start.
+    func prewarm() {
+        audioEngine.prewarm()
+    }
+
     func startRecording() async {
         guard !audioEngine.isRecording else {
             return
         }
-        let canStart = await MainActor.run {
+        startGeneration &+= 1
+        let generation = startGeneration
+
+        // Single main-actor hop: validate state, snapshot everything the start
+        // needs, and optimistically show the recording UI. The indicator must
+        // not wait on CoreAudio — engine start (especially a Bluetooth route
+        // switch) can take hundreds of ms, and that lag reads as hotkey lag.
+        let context: StartContext? = await MainActor.run {
             switch appState.pipelineState {
             case .idle, .error:
-                // Reset a stale error (e.g. 400 from the previous attempt) so
-                // the next activation isn't blocked.
-                appState.pipelineState = .idle
+                // Entering .recording also resets a stale error (e.g. 400 from
+                // the previous attempt) so the next activation isn't blocked.
+                appState.pipelineState = .recording
                 appState.audioLevels = Array(repeating: 0, count: 15)
                 appState.recordingElapsed = 0
-                return true
+
+                // Snapshot the app being dictated into now — focus may move to
+                // Dictify's UI or elsewhere before insertion time. NSWorkspace
+                // is main-thread only. Browsers are left nil: the real target
+                // is whatever web app is loaded, which the app name can't
+                // reveal, so refinement stays neutral there.
+                let app = NSWorkspace.shared.frontmostApplication
+                let appName: String?
+                if let bundleID = app?.bundleIdentifier, Self.browserBundleIDs.contains(bundleID) {
+                    appName = nil
+                } else {
+                    appName = app?.localizedName
+                }
+                return StartContext(
+                    frontmostAppName: appName,
+                    preferredDeviceUID: settings.selectedInputDeviceUID,
+                    pauseMediaDuringDictation: settings.pauseMediaDuringDictation
+                )
             default:
-                return false
+                return nil
             }
         }
-        guard canStart else {
+        guard let context else {
             return
         }
 
-        // Snapshot the app being dictated into now — focus may move to Dictify's
-        // UI or elsewhere before insertion time. NSWorkspace is main-thread only.
-        // Browsers are left nil: the real target is whatever web app is loaded,
-        // which the app name can't reveal, so refinement stays neutral there.
-        frontmostAppName = await MainActor.run {
-            let app = NSWorkspace.shared.frontmostApplication
-            if let bundleID = app?.bundleIdentifier, Self.browserBundleIDs.contains(bundleID) {
-                return nil
+        guard generation == startGeneration else {
+            // A stop/cancel interleaved during the hop above. If its idle-write
+            // ran before our optimistic .recording write nothing else will
+            // clear it, so do it here; if it ran after, the guard below makes
+            // this a no-op.
+            await MainActor.run {
+                if case .recording = appState.pipelineState {
+                    appState.pipelineState = .idle
+                    appState.audioLevels = Array(repeating: 0, count: 15)
+                    appState.recordingElapsed = 0
+                }
             }
-            return app?.localizedName
+            return
         }
 
-        let preferredDeviceUID = await MainActor.run { settings.selectedInputDeviceUID }
+        frontmostAppName = context.frontmostAppName
 
         do {
-            try audioEngine.startCapture(
-                preferredDeviceUID: preferredDeviceUID,
+            // Async: a Bluetooth route settle can suspend here, so stop/cancel
+            // may interleave — the engine aborts via its own captureGeneration,
+            // and the check below unwinds anything they couldn't see yet.
+            try await audioEngine.startCapture(
+                preferredDeviceUID: context.preferredDeviceUID,
                 levelCallback: { [weak appState] levels in
                     appState?.audioLevels = levels
                 },
@@ -138,17 +186,23 @@ actor TranscriptionPipeline {
                     Task { await self.handleInterruption(reason) }
                 }
             )
+            guard generation == startGeneration else {
+                audioEngine.stopCapture()
+                return
+            }
             scheduleMaxDurationStop()
 
+            // UI is already showing; the Tink stays truthful — it means "mic
+            // is live, start talking", which matters on the Bluetooth retry
+            // path where capture start can lag the indicator.
             await MainActor.run {
-                appState.pipelineState = .recording
                 appState.playSound("Tink")
             }
             await startElapsedTimer()
 
             // Pause system media after the recording cue so the helper subprocess
             // doesn't delay the "Tink". We only resume what we pause (`didPauseMedia`).
-            if await MainActor.run(body: { settings.pauseMediaDuringDictation }) {
+            if context.pauseMediaDuringDictation {
                 let paused = await mediaController.pauseIfPlaying()
                 if paused {
                     // The pause is async: a near-instant stop can run (actor
@@ -167,6 +221,11 @@ actor TranscriptionPipeline {
             cancelMaxDurationStop()
             await resumeMediaIfNeeded()
             Log.pipeline.error("Failed to start capture: \(error.localizedDescription, privacy: .public)")
+            // A stop/cancel may have interleaved at the await above; it owns
+            // the state now, so don't overwrite its .idle with an error.
+            guard generation == startGeneration else {
+                return
+            }
             await MainActor.run {
                 appState.pipelineState = .error("Microphone unavailable")
                 appState.audioLevels = Array(repeating: 0, count: 15)
@@ -177,6 +236,7 @@ actor TranscriptionPipeline {
     }
 
     func stopRecording() async {
+        startGeneration &+= 1
         guard audioEngine.isRecording else {
             await stopElapsedTimer()
             await resumeMediaIfNeeded()
@@ -371,6 +431,7 @@ actor TranscriptionPipeline {
     }
 
     func cancelRecording() async {
+        startGeneration &+= 1
         cancelMaxDurationStop()
         processingTask?.cancel()
         processingTask = nil
@@ -386,6 +447,7 @@ actor TranscriptionPipeline {
     /// Invoked by AudioEngine when the capture is forcibly terminated
     /// (device change, system sleep, buffer overflow, converter error).
     private func handleInterruption(_ reason: AudioEngineInterruption) async {
+        startGeneration &+= 1
         Log.pipeline.notice("Audio capture interrupted: \(String(describing: reason), privacy: .public)")
         cancelMaxDurationStop()
         audioEngine.stopCapture()

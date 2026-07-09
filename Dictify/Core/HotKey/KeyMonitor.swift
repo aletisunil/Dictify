@@ -206,6 +206,10 @@ final class KeyMonitor {
         if isActive && !wasActive {
             fnPressTime = Date()
             isRecording = true
+            // Latency instrumentation: pairs with "Indicator shown" (ui) and
+            // "Engine started" (audio) log lines to measure trigger→feedback.
+            Log.hotkey.notice("Trigger pressed")
+            Log.pipelineSignpost.emitEvent("trigger-press")
             onRecordingStart()
         } else if !isActive && wasActive && isRecording {
             isRecording = false

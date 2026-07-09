@@ -402,5 +402,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+
+        // Permissions granted and the hotkey is live — front-load the CoreAudio
+        // graph so the first dictation doesn't pay the engine cold start.
+        Task { [weak self] in
+            await self?.pipeline?.prewarm()
+        }
     }
 }

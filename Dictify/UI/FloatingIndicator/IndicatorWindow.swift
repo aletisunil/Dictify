@@ -14,6 +14,9 @@ final class IndicatorWindow {
     init(appState: AppState) {
         self.appState = appState
         setupObserver()
+        // Build the panel (and its SwiftUI hosting hierarchy) up front so the
+        // first hotkey trigger doesn't pay the construction cost.
+        createPanel()
 
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -27,8 +30,9 @@ final class IndicatorWindow {
     }
 
     private func setupObserver() {
+        // No .receive(on:) hop: AppState is @MainActor, so $pipelineState already
+        // fires on main; deferring by a run-loop turn would delay the indicator.
         cancellable = appState.$pipelineState
-            .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
                 guard let self else { return }
                 switch state {
@@ -62,6 +66,8 @@ final class IndicatorWindow {
         positionPanel()
         panel.alphaValue = 1
         panel.orderFront(nil)
+        Log.ui.notice("Indicator shown")
+        Log.pipelineSignpost.emitEvent("indicator-shown")
     }
 
     private func hidePanel() {

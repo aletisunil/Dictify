@@ -187,6 +187,20 @@ final class AudioEngine: @unchecked Sendable {
         }
     }
 
+    /// Front-load the AUHAL graph build so the first real capture doesn't pay
+    /// the CoreAudio cold start. Touching `inputNode` instantiates the input
+    /// unit and binds the default device; `prepare()` preallocates render
+    /// resources. No tap is installed and the engine is not started, so no
+    /// audio I/O runs and the system mic-in-use indicator stays off.
+    /// Call only when microphone permission is already granted.
+    func prewarm() {
+        let busy = stateQueue.sync { tapInstalled }
+        guard busy == false else { return }
+        let inputFormat = engine.inputNode.outputFormat(forBus: 0)
+        engine.prepare()
+        Log.audio.notice("Engine prewarmed (input: \(inputFormat.sampleRate, privacy: .public) Hz, \(inputFormat.channelCount, privacy: .public) ch)")
+    }
+
     /// Begin capture. `onInterruption` is invoked (on main) when the engine is
     /// torn down due to a device/route change, system sleep, buffer overflow,
     /// or converter error. Callers should treat it as a terminal error signal
@@ -195,7 +209,7 @@ final class AudioEngine: @unchecked Sendable {
         preferredDeviceUID: String = "",
         levelCallback: @escaping @MainActor @Sendable ([Float]) -> Void,
         onInterruption: @escaping @Sendable (AudioEngineInterruption) -> Void
-    ) throws {
+    ) async throws {
         let already = stateQueue.sync { tapInstalled }
         guard !already else { throw AudioEngineError.alreadyRecording }
 
@@ -233,7 +247,7 @@ final class AudioEngine: @unchecked Sendable {
         // buffer is delivered. The first attempt provokes the switch; retrying once
         // the route settles picks up the node's new format and succeeds.
         do {
-            try startEngineWithRetry(preferredDeviceUID: preferredDeviceUID, levelCallback: levelCallback)
+            try await startEngineWithRetry(preferredDeviceUID: preferredDeviceUID, levelCallback: levelCallback)
         } catch {
             // Roll back partial state; do not fire interruption handler for a
             // start failure — the throw is the signal.
@@ -270,19 +284,30 @@ final class AudioEngine: @unchecked Sendable {
         preferredDeviceUID: String,
         levelCallback: @escaping @MainActor @Sendable ([Float]) -> Void,
         maxAttempts: Int = 4
-    ) throws {
+    ) async throws {
         let bufferSize: AVAudioFrameCount = 4096
         var lastError: Error?
+        // Snapshot at entry: a stopCapture/tearDown during an await bumps this,
+        // and we must not bring the engine back up underneath it.
+        let generation = stateQueue.sync { captureGeneration }
+        // Resolve the selected mic once — `deviceID(forUID:)` enumerates every
+        // CoreAudio device. Re-resolved only when the engine is replaced, since
+        // a device can (dis)appear across the longer backoffs.
+        var preferredDevice = AudioDeviceManager.deviceID(forUID: preferredDeviceUID)
 
         for attempt in 1...maxAttempts {
+            guard stateQueue.sync(execute: { captureGeneration }) == generation else {
+                throw AudioEngineError.startAborted
+            }
             // Attempts 1–2 retry the existing engine (covers the normal HFP
             // settle); from attempt 3 assume the inputNode is stale and rebuild.
             if attempt >= 3 {
                 engine = AVAudioEngine()
+                preferredDevice = AudioDeviceManager.deviceID(forUID: preferredDeviceUID)
                 Log.audio.notice("Replaced AVAudioEngine instance for attempt \(attempt, privacy: .public)/\(maxAttempts, privacy: .public)")
             }
             let inputNode = engine.inputNode
-            applyPreferredInputDevice(preferredDeviceUID, to: inputNode)
+            applyPreferredInputDevice(preferredDevice, to: inputNode)
 
             // Re-read the live input format each attempt; a prior failed start may
             // have flipped the device into a new sample rate.
@@ -301,6 +326,8 @@ final class AudioEngine: @unchecked Sendable {
 
             do {
                 try engine.start()
+                Log.audio.notice("Engine started (attempt \(attempt, privacy: .public))")
+                Log.pipelineSignpost.emitEvent("engine-started")
                 return
             } catch {
                 lastError = error
@@ -313,8 +340,10 @@ final class AudioEngine: @unchecked Sendable {
                 if attempt < maxAttempts {
                     // Let the provoked Bluetooth route change settle before retrying.
                     // Doubling backoff (0.2/0.4/0.8s): HFP switches routinely take
-                    // longer than the old fixed 0.2s window.
-                    Thread.sleep(forTimeInterval: 0.2 * pow(2.0, Double(attempt - 1)))
+                    // longer than the old fixed 0.2s window. Task.sleep (not
+                    // Thread.sleep) so the caller's actor isn't held hostage — a
+                    // quick key release must be able to run stop/cancel meanwhile.
+                    try? await Task.sleep(nanoseconds: UInt64(0.2 * pow(2.0, Double(attempt - 1)) * 1_000_000_000))
                 }
             }
         }
@@ -452,10 +481,11 @@ final class AudioEngine: @unchecked Sendable {
         }
     }
 
-    /// Routes capture to the user-selected microphone. When the UID is empty or
-    /// the device is unplugged, the engine falls back to the system default input.
-    private func applyPreferredInputDevice(_ uid: String, to inputNode: AVAudioInputNode) {
-        guard let deviceID = AudioDeviceManager.deviceID(forUID: uid),
+    /// Routes capture to the user-selected microphone. When the resolved device
+    /// is nil (empty UID or unplugged), the engine falls back to the system
+    /// default input.
+    private func applyPreferredInputDevice(_ deviceID: AudioDeviceID?, to inputNode: AVAudioInputNode) {
+        guard let deviceID,
               let audioUnit = inputNode.audioUnit else { return }
         var mutableID = deviceID
         let status = AudioUnitSetProperty(
@@ -587,14 +617,14 @@ final class AudioEngine: @unchecked Sendable {
             return
         }
 
-        // Off the main queue: the retry below briefly blocks (Thread.sleep) while
-        // the route settles, which must not stall the UI run loop.
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        // Off the main actor: the settle wait + retry must not stall the UI
+        // run loop. Detached so it doesn't inherit the notification's context.
+        Task.detached(priority: .userInitiated) { [weak self] in
             guard let self = self else { return }
 
             // Coalesce the burst of notifications a single route switch emits, and
             // let the route reach its final format before we re-read it.
-            Thread.sleep(forTimeInterval: 0.15)
+            try? await Task.sleep(nanoseconds: 150_000_000)
 
             // Bail if capture ended (stop/teardown) while we were waiting.
             guard self.stateQueue.sync(execute: { self.captureGeneration }) == generation else {
@@ -609,7 +639,7 @@ final class AudioEngine: @unchecked Sendable {
             self.engine.reset()
 
             do {
-                try self.startEngineWithRetry(preferredDeviceUID: uid, levelCallback: callback)
+                try await self.startEngineWithRetry(preferredDeviceUID: uid, levelCallback: callback)
                 // stopCapture/tearDown may have run during the restart window; if so,
                 // unwind the engine we just brought back up instead of leaving it live.
                 let stale = self.stateQueue.sync(execute: { self.captureGeneration }) != generation
@@ -716,6 +746,9 @@ enum AudioEngineError: Error, LocalizedError {
     case formatCreationFailed
     case converterCreationFailed
     case inputUnavailable
+    /// Capture was stopped (quick release / teardown) while the engine start
+    /// was still settling a route change — not a user-visible failure.
+    case startAborted
 
     var errorDescription: String? {
         switch self {
@@ -723,6 +756,7 @@ enum AudioEngineError: Error, LocalizedError {
         case .formatCreationFailed: return "Failed to create target audio format"
         case .converterCreationFailed: return "Failed to create audio converter"
         case .inputUnavailable: return "Microphone input is unavailable"
+        case .startAborted: return "Capture start aborted by stop"
         }
     }
 }
