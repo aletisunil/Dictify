@@ -359,15 +359,19 @@ struct GeneralSettingsView: View {
     }
 
     /// Resolves the stored UID to a display name for the collapsed menu label.
+    /// A selection whose device is gone (mic unplugged) is reset to System
+    /// Default rather than shown as unavailable — capture already routes to the
+    /// default in that case, so the setting simply follows reality.
     private func refreshSelectedDisplayName() {
-        if selectedInputDeviceUID.isEmpty {
-            let name = AudioDeviceManager.defaultInputDeviceName()
-            selectedDisplayName = name.map { "System Default (\($0))" } ?? "System Default"
-        } else if let device = AudioDeviceManager.inputDevices().first(where: { $0.uid == selectedInputDeviceUID }) {
-            selectedDisplayName = device.name
-        } else {
-            selectedDisplayName = "Unavailable device"
+        if !selectedInputDeviceUID.isEmpty {
+            if let device = AudioDeviceManager.inputDevices().first(where: { $0.uid == selectedInputDeviceUID }) {
+                selectedDisplayName = device.name
+                return
+            }
+            selectedInputDeviceUID = ""
         }
+        let name = AudioDeviceManager.defaultInputDeviceName()
+        selectedDisplayName = name.map { "System Default (\($0))" } ?? "System Default"
     }
 
     private func syncLaunchAtLoginState() {

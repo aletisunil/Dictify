@@ -185,11 +185,13 @@ final class GPTOssService: @unchecked Sendable {
         if !snippetContext.isEmpty {
             messages.append([
                 "role": "system",
-                "content": "SNIPPETS — if the transcript contains one of these cues "
-                    + "(allow for mishearings/different casing/punctuation), replace the "
-                    + "cue with its replacement text verbatim. A literal \\n in a "
-                    + "replacement means a line break. Do not expand cues that aren't "
-                    + "present.\n\(snippetContext)"
+                "content": "SNIPPETS — if the transcript contains one of these cues, "
+                    + "replace the cue with its replacement text verbatim. Speech-to-text "
+                    + "mangles cues: match them case-insensitively and even when split "
+                    + "into separate words or slightly misheard (a cue \"pasteclip\" may "
+                    + "appear as \"paste clip\", \"Paste Clip\" or \"paste-clip\"). A "
+                    + "literal \\n in a replacement means a line break. Do not expand "
+                    + "cues that aren't present.\n\(snippetContext)"
             ])
         }
 

@@ -304,7 +304,13 @@ actor TranscriptionPipeline {
         let rawTranscript: String
         do {
             try Task.checkCancellation()
-            let dictPrompt = await MainActor.run { dictionaryStore.promptString }
+            // Snippet cues ride along with the dictionary terms so Whisper
+            // transcribes them as written — an invented cue like "pasteclip"
+            // otherwise splits into "paste clip" and is harder to match.
+            let dictPrompt = await MainActor.run {
+                let parts = [dictionaryStore.promptString] + snippetStore.cueTerms
+                return parts.filter { !$0.isEmpty }.joined(separator: ", ")
+            }
             rawTranscript = try await whisperService.transcribe(
                 wavData: wavData,
                 dictionaryPrompt: dictPrompt
@@ -343,6 +349,7 @@ actor TranscriptionPipeline {
         }
 
         var finalText = rawTranscript
+        var refinementSucceeded = false
 
         let refinementEnabled = await MainActor.run { settings.refinementEnabled }
         let hasSnippets = await MainActor.run { !snippetStore.snippets.isEmpty }
@@ -376,6 +383,7 @@ actor TranscriptionPipeline {
                     model: model,
                     reasoningEffort: effort
                 )
+                refinementSucceeded = true
             } catch APIError.cancelled, is CancellationError {
                 Log.pipelineSignpost.endInterval("refine", refineState)
                 Log.pipeline.notice("Refinement cancelled by user")
@@ -401,14 +409,26 @@ actor TranscriptionPipeline {
             return
         }
 
+        // Snippet expansion: the refinement model handles misheard/reformatted
+        // cues (SnippetStore.snippetContext / GPTOssService); this deterministic
+        // pass catches cues the model left literal — small models skip them —
+        // and covers the refinement-disabled/failed paths. After successful
+        // refinement the text may already contain spliced bodies, so cues that
+        // also occur inside a snippet body are skipped there — expanding them
+        // again would duplicate the body.
+        if hasSnippets {
+            let textToExpand = finalText
+            let skipEmbedded = refinementSucceeded
+            finalText = await MainActor.run {
+                snippetStore.expandCues(in: textToExpand, skippingCuesEmbeddedInBodies: skipEmbedded)
+            }
+        }
+
         await MainActor.run {
             appState.pipelineState = .inserting
         }
 
         let insertState = Log.pipelineSignpost.beginInterval("insert", id: signpostID)
-        // Snippet expansion is now handled by the refinement model (see
-        // SnippetStore.snippetContext / GPTOssService), so cues are matched even
-        // when misheard or reformatted. Nothing to splice locally here.
         // Wait for the 100ms focus-handoff window we kicked off at the start of
         // processing; by now it has almost certainly already elapsed.
         _ = await focusHandoffTask.value

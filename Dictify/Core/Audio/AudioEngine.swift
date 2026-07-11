@@ -32,9 +32,9 @@ enum AudioDeviceManager {
         return inputDevices().first { $0.uid == uid }?.id
     }
 
-    /// Name of the device macOS currently uses as the default input — i.e. what
-    /// "System Default" actually routes to right now (e.g. "MacBook Pro Microphone").
-    static func defaultInputDeviceName() -> String? {
+    /// Device macOS currently uses as the default input — i.e. what
+    /// "System Default" actually routes to right now.
+    static func defaultInputDeviceID() -> AudioDeviceID? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultInputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -45,6 +45,12 @@ enum AudioDeviceManager {
         guard AudioObjectGetPropertyData(
             AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &dataSize, &deviceID
         ) == noErr, deviceID != 0 else { return nil }
+        return deviceID
+    }
+
+    /// Name of the current default input device (e.g. "MacBook Pro Microphone").
+    static func defaultInputDeviceName() -> String? {
+        guard let deviceID = defaultInputDeviceID() else { return nil }
         return stringProperty(deviceID, selector: kAudioObjectPropertyName)
     }
 
@@ -293,7 +299,16 @@ final class AudioEngine: @unchecked Sendable {
         // Resolve the selected mic once — `deviceID(forUID:)` enumerates every
         // CoreAudio device. Re-resolved only when the engine is replaced, since
         // a device can (dis)appear across the longer backoffs.
-        var preferredDevice = AudioDeviceManager.deviceID(forUID: preferredDeviceUID)
+        //
+        // Fall back to the *explicit* system-default device when the UID is
+        // empty or no longer resolves (mic unplugged). `stopCapture` parks the
+        // AUHAL on kAudioObjectUnknown to release Bluetooth routes; without an
+        // explicit rebind here the reused engine starts with no device and a
+        // stale client format, and graph init fails -10868 on every attempt
+        // until the instance is replaced — a guaranteed ~750ms of lost speech
+        // per dictation. Binding the default (plus the format reconcile in
+        // `applyPreferredInputDevice`) restores the known-good start path.
+        var preferredDevice = Self.resolveInputDevice(preferredUID: preferredDeviceUID)
 
         for attempt in 1...maxAttempts {
             guard stateQueue.sync(execute: { captureGeneration }) == generation else {
@@ -303,7 +318,7 @@ final class AudioEngine: @unchecked Sendable {
             // settle); from attempt 3 assume the inputNode is stale and rebuild.
             if attempt >= 3 {
                 engine = AVAudioEngine()
-                preferredDevice = AudioDeviceManager.deviceID(forUID: preferredDeviceUID)
+                preferredDevice = Self.resolveInputDevice(preferredUID: preferredDeviceUID)
                 Log.audio.notice("Replaced AVAudioEngine instance for attempt \(attempt, privacy: .public)/\(maxAttempts, privacy: .public)")
             }
             let inputNode = engine.inputNode
@@ -349,6 +364,16 @@ final class AudioEngine: @unchecked Sendable {
         }
 
         throw lastError ?? AudioEngineError.inputUnavailable
+    }
+
+    /// The device to bind for this capture: the user's selected mic when its
+    /// UID still resolves, otherwise the current system default. Returns nil
+    /// only when no input device exists at all.
+    private static func resolveInputDevice(preferredUID: String) -> AudioDeviceID? {
+        if let selected = AudioDeviceManager.deviceID(forUID: preferredUID) {
+            return selected
+        }
+        return AudioDeviceManager.defaultInputDeviceID()
     }
 
     private func handleTap(
@@ -481,9 +506,9 @@ final class AudioEngine: @unchecked Sendable {
         }
     }
 
-    /// Routes capture to the user-selected microphone. When the resolved device
-    /// is nil (empty UID or unplugged), the engine falls back to the system
-    /// default input.
+    /// Routes capture to the resolved microphone (user-selected, or the system
+    /// default via `resolveInputDevice`). nil — no input device at all — leaves
+    /// the AUHAL binding untouched.
     private func applyPreferredInputDevice(_ deviceID: AudioDeviceID?, to inputNode: AVAudioInputNode) {
         guard let deviceID,
               let audioUnit = inputNode.audioUnit else { return }
