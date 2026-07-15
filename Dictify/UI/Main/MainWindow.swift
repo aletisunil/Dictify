@@ -480,7 +480,7 @@ struct HomeView: View {
                              subtitle: wpmString(stats.totalWPM) + " wpm")
                     StatCard(icon: "clock.arrow.circlepath",
                              title: "Transcriptions",
-                             value: "\(appState.historyStore?.records.count ?? 0)",
+                             value: "\(stats.totalDictations)",
                              subtitle: "recorded")
                     StatCard(icon: "flame",
                              title: "Current streak",
@@ -903,7 +903,7 @@ struct TranscriptionCardRow: View {
                         if editable {
                             IconButton(systemName: "pencil", help: "Edit transcription") {
                                 draftText = record.refinedText
-                                withAnimation(.easeOut(duration: 0.12)) { isEditing = true }
+                                withMotionAnimation(.easeOut(duration: 0.12)) { isEditing = true }
                             }
                         }
                         IconButton(systemName: copied ? "checkmark" : "doc.on.doc",
@@ -933,7 +933,7 @@ struct TranscriptionCardRow: View {
                 HStack(spacing: 8) {
                     Spacer()
                     Button("Cancel") {
-                        withAnimation(.easeOut(duration: 0.12)) { isEditing = false }
+                        withMotionAnimation(.easeOut(duration: 0.12)) { isEditing = false }
                     }
                     .controlSize(.small)
                     Button("Save") { saveEdit() }
@@ -955,10 +955,10 @@ struct TranscriptionCardRow: View {
         .contentShape(Rectangle())
         .onTapGesture {
             guard hasComparison, !isEditing else { return }
-            withAnimation(.easeOut(duration: 0.12)) { showComparison.toggle() }
+            withMotionAnimation(.easeOut(duration: 0.12)) { showComparison.toggle() }
         }
         .onHover { isOver in
-            withAnimation(.easeOut(duration: 0.12)) { hovering = isOver }
+            withMotionAnimation(.easeOut(duration: 0.12)) { hovering = isOver }
         }
         .help(hasComparison ? "Click to compare with the original transcription" : "")
     }
@@ -980,15 +980,15 @@ struct TranscriptionCardRow: View {
             appState.historyStore?.update(updated)
         }
 
-        withAnimation(.easeOut(duration: 0.12)) { isEditing = false }
+        withMotionAnimation(.easeOut(duration: 0.12)) { isEditing = false }
     }
 
     private func copyText() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(record.refinedText, forType: .string)
-        withAnimation(.easeOut(duration: 0.15)) { copied = true }
+        withMotionAnimation(.easeOut(duration: 0.15)) { copied = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation(.easeOut(duration: 0.15)) { copied = false }
+            withMotionAnimation(.easeOut(duration: 0.15)) { copied = false }
         }
     }
 }
@@ -1079,7 +1079,11 @@ private enum TranscriptDiff {
                 run[AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self] = .red
                 run[AttributeScopes.SwiftUIAttributes.StrikethroughStyleAttribute.self] = .single
             case .added:
+                // Underline as well as green so additions survive red-green
+                // color blindness (removed text has strikethrough for the same
+                // reason).
                 run[AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self] = .green
+                run[AttributeScopes.SwiftUIAttributes.UnderlineStyleAttribute.self] = .single
             }
             result += run
             result += AttributedString(" ")
@@ -1163,6 +1167,8 @@ private struct IconButton: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .help(help)
+        // Icon-only: without this VoiceOver reads the SF Symbol name or nothing.
+        .accessibilityLabel(help)
     }
 }
 
@@ -1312,6 +1318,9 @@ struct ContributionGraphView: View {
                                 .fill(tint(counts[day] ?? 0))
                                 .frame(width: cell, height: cell)
                                 .help(helpText(day: day, count: counts[day] ?? 0))
+                                // Color-only cells: expose the same date+count
+                                // text the tooltip shows to VoiceOver.
+                                .accessibilityLabel(helpText(day: day, count: counts[day] ?? 0))
                         }
                     }
                 }

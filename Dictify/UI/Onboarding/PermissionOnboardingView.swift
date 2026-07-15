@@ -172,7 +172,7 @@ struct PermissionOnboardingView: View {
                 nextPage = afterApiKey
             }
         }
-        withAnimation {
+        withMotionAnimation {
             currentPage = nextPage
         }
     }
@@ -184,7 +184,7 @@ struct PermissionOnboardingView: View {
                 prevPage = beforeApiKey
             }
         }
-        withAnimation {
+        withMotionAnimation {
             currentPage = prevPage
         }
     }

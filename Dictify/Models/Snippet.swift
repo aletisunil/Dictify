@@ -18,7 +18,11 @@ struct Snippet: Codable, Identifiable, Hashable {
         self.createdAt = Date()
     }
 
-    func expandedBody() -> String {
+    /// Resolves `{{date}}`/`{{time}}` and, when `resolvingClipboard` is true,
+    /// `{{clipboard}}`. Pass `resolvingClipboard: false` for any text that will
+    /// be sent over the network — the clipboard must never leave the Mac, so
+    /// the placeholder is kept literal and substituted locally afterwards.
+    func expandedBody(resolvingClipboard: Bool = true) -> String {
         var result = body
         let now = Date()
         let dateFormatter = DateFormatter()
@@ -29,7 +33,7 @@ struct Snippet: Codable, Identifiable, Hashable {
         result = result.replacingOccurrences(of: "{{date}}", with: dateFormatter.string(from: now))
         result = result.replacingOccurrences(of: "{{time}}", with: timeFormatter.string(from: now))
 
-        if result.contains("{{clipboard}}") {
+        if resolvingClipboard && result.contains("{{clipboard}}") {
             let clipboard = NSPasteboard.general.string(forType: .string) ?? ""
             result = result.replacingOccurrences(of: "{{clipboard}}", with: clipboard)
         }

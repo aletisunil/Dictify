@@ -3,6 +3,8 @@ import SwiftUI
 struct WaveformView: View {
     let levels: [Float]
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private let barSpacing: CGFloat = 2
     private let minBarWidth: CGFloat = 3
     private let minBarHeight: CGFloat = 3
@@ -25,7 +27,9 @@ struct WaveformView: View {
                         .fill(barGradient)
                         .frame(width: barWidth)
                         .frame(height: minBarHeight + responsiveLevel * (maxBarHeight - minBarHeight))
-                        .animation(.spring(response: 0.14, dampingFraction: 0.62), value: level)
+                        // Bars still track level (the recording indicator must
+                        // stay functional); Reduce Motion just drops the spring.
+                        .animation(reduceMotion ? nil : .spring(response: 0.14, dampingFraction: 0.62), value: level)
                 }
             }
             .frame(width: geometry.size.width, height: maxBarHeight, alignment: .center)

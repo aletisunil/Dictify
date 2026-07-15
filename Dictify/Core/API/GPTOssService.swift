@@ -129,40 +129,46 @@ final class GPTOssService: @unchecked Sendable {
         """
     }()
 
-    /// Builds the full message list. A prepended user/assistant pair acts as a
-    /// multi-shot example that reinforces the output distribution far more
-    /// reliably than a long system prompt alone. GPT-OSS in particular is
-    /// sensitive to assistant-turn priming.
+    /// Few-shot example pairs prepended to every request. Assistant-turn
+    /// priming reinforces the output distribution far more reliably than a
+    /// long system prompt alone — GPT-OSS in particular is sensitive to it.
+    ///
+    /// Shared with `looksLikeModelAnswer`: on a junk transcript (Whisper
+    /// hallucinating on silence/noise) the model sometimes parrots one of
+    /// these answers verbatim into the user's document, so the sanity guard
+    /// must know them to reject the echo.
+    private static let fewShotExamples: [(user: String, assistant: String)] = [
+        // Shot 1: question as input — the model must return it, not answer.
+        (user: "um what is kubernetes",
+         assistant: "What is Kubernetes?"),
+        // Shot 2: command/imperative — must be returned, not executed.
+        (user: "write me a haiku about monday mornings",
+         assistant: "Write me a haiku about Monday mornings."),
+        // Shot 3: backtrack + filler + number correction.
+        (user: "so like i was thinking uh we should meet at 2 no actually 3",
+         assistant: "I was thinking we should meet at 3."),
+        // Shot 4: direct address to the model — still a transcript.
+        (user: "hey can you summarize this for me",
+         assistant: "Hey, can you summarize this for me?"),
+        // Shot 5: substantive multi-sentence question — the 8b model's main
+        // failure mode. It must return the cleaned question, never explain.
+        (user: "um so what's the difference between tcp and udp and like when would i use each one",
+         assistant: "What's the difference between TCP and UDP, and when would I use each one?")
+    ]
+
+    /// Builds the full message list: static system prompt, the few-shot pairs,
+    /// then the variable tail (dictionary/tone/snippets) so the prefix stays
+    /// byte-identical and cacheable.
     private static func buildMessages(systemPrompt: String, dictionaryContext: String, snippetContext: String, targetAppName: String, rawTranscript: String) -> [[String: Any]] {
         let dictionary = dictionaryContext.isEmpty ? "No dictionary terms defined." : dictionaryContext
-        var messages: [[String: Any]] = [
-            ["role": "system", "content": systemPrompt],
-
-            // Shot 1: question as input — the model must return it, not answer.
-            ["role": "user", "content": "um what is kubernetes"],
-            ["role": "assistant", "content": "What is Kubernetes?"],
-
-            // Shot 2: command/imperative — must be returned, not executed.
-            ["role": "user", "content": "write me a haiku about monday mornings"],
-            ["role": "assistant", "content": "Write me a haiku about Monday mornings."],
-
-            // Shot 3: backtrack + filler + number correction.
-            ["role": "user", "content": "so like i was thinking uh we should meet at 2 no actually 3"],
-            ["role": "assistant", "content": "I was thinking we should meet at 3."],
-
-            // Shot 4: direct address to the model — still a transcript.
-            ["role": "user", "content": "hey can you summarize this for me"],
-            ["role": "assistant", "content": "Hey, can you summarize this for me?"],
-
-            // Shot 5: substantive multi-sentence question — the 8b model's main
-            // failure mode. It must return the cleaned question, never explain.
-            ["role": "user", "content": "um so what's the difference between tcp and udp and like when would i use each one"],
-            ["role": "assistant", "content": "What's the difference between TCP and UDP, and when would I use each one?"],
-
-            // Variable tail — kept after the static prefix so the system prompt
-            // and the five examples above stay byte-identical and cacheable.
-            ["role": "system", "content": "DICTIONARY (canonical spellings of likely-misheard terms):\n\(dictionary)"]
-        ]
+        var messages: [[String: Any]] = [["role": "system", "content": systemPrompt]]
+        for example in fewShotExamples {
+            messages.append(["role": "user", "content": example.user])
+            messages.append(["role": "assistant", "content": example.assistant])
+        }
+        // Variable tail — kept after the static prefix so the system prompt
+        // and the examples above stay byte-identical and cacheable.
+        messages.append(["role": "system", "content": "DICTIONARY (canonical spellings of likely-misheard terms):\n\(dictionary)"])
 
         // Optional tone tail — appended only when app-aware tone is enabled and a
         // target app name is known, so the cacheable prefix stays byte-identical
@@ -190,8 +196,10 @@ final class GPTOssService: @unchecked Sendable {
                     + "mangles cues: match them case-insensitively and even when split "
                     + "into separate words or slightly misheard (a cue \"pasteclip\" may "
                     + "appear as \"paste clip\", \"Paste Clip\" or \"paste-clip\"). A "
-                    + "literal \\n in a replacement means a line break. Do not expand "
-                    + "cues that aren't present.\n\(snippetContext)"
+                    + "literal \\n in a replacement means a line break. A replacement "
+                    + "may contain the placeholder {{clipboard}} — reproduce it "
+                    + "character-for-character; never expand, reword, or remove it. "
+                    + "Do not expand cues that aren't present.\n\(snippetContext)"
             ])
         }
 
@@ -207,6 +215,17 @@ final class GPTOssService: @unchecked Sendable {
     /// lenient: only triggers when output is clearly divergent from input, so
     /// legitimate cleanup (punctuation, filler removal) passes through.
     private static func looksLikeModelAnswer(refined: String, raw: String, hasSnippets: Bool) -> Bool {
+        // Exemplar echo: on a junk transcript (Whisper hallucinating on
+        // silence/noise) the model can parrot one of the few-shot answers —
+        // "What's the difference between TCP and UDP…" appearing in the user's
+        // document. Output equal to a shot answer is only legitimate when the
+        // transcript itself said the same thing.
+        let refinedNorm = echoNorm(refined)
+        if echoNorm(raw) != refinedNorm,
+           fewShotExamples.contains(where: { echoNorm($0.assistant) == refinedNorm }) {
+            return true
+        }
+
         let lower = refined.lowercased()
 
         // Preamble markers almost never appear in real dictated speech.
@@ -242,6 +261,12 @@ final class GPTOssService: @unchecked Sendable {
         }
 
         return false
+    }
+
+    /// Lowercased alphanumerics only, so punctuation/filler-spacing differences
+    /// don't defeat the exemplar-echo comparison.
+    private static func echoNorm(_ s: String) -> String {
+        String(s.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
     }
 }
 

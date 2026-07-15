@@ -170,6 +170,19 @@ extension Font {
     static let dsMono = Font.system(size: 12, design: .monospaced)
 }
 
+// MARK: - Reduced motion
+
+/// `withAnimation` that honors the system Reduce Motion preference: the state
+/// change still happens, just without the animated transition. Use for every
+/// decorative animation; matches the NSWorkspace pattern in IndicatorWindow.
+func withMotionAnimation(_ animation: Animation? = .default, _ body: () -> Void) {
+    if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+        body()
+    } else {
+        withAnimation(animation, body)
+    }
+}
+
 // MARK: - Card surface
 
 extension View {
@@ -414,6 +427,8 @@ struct CreamSecureField: View {
             }
             .buttonStyle(.plain)
             .help(isRevealed ? "Hide key" : "Show key")
+            // Icon-only: give VoiceOver the same text as the tooltip.
+            .accessibilityLabel(isRevealed ? "Hide key" : "Show key")
         }
         .creamFieldCapsule()
     }
