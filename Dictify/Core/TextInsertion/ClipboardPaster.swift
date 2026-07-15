@@ -33,7 +33,6 @@ final class ClipboardPaster {
         // This preserves images, files, RTF, URLs, etc.
         let pasteboard = NSPasteboard.general
         let snapshot = Self.snapshot(pasteboard)
-        let changeCountBeforeOverwrite = pasteboard.changeCount
 
         pasteboard.clearContents()
         Self.writeConcealed(text, to: pasteboard)
@@ -53,42 +52,38 @@ final class ClipboardPaster {
             try? await Task.sleep(nanoseconds: 50_000_000)
             Self.simulatePaste()
 
-            // Poll changeCount: only restore AFTER the target app has read our
-            // clipboard (evidenced by a subsequent change) OR after a 1500 ms
-            // safety ceiling. This prevents the race where restore clobbers
-            // the in-flight paste in slower Electron hosts.
+            // NSPasteboard.changeCount bumps only when someone WRITES to the
+            // pasteboard — a normal paste (read) never changes it, so paste
+            // consumption is unobservable. Instead: wait long enough for slow
+            // hosts (Electron) to process the ⌘V, then restore the snapshot
+            // only while our write is still the latest. If the count moved,
+            // the user or another app wrote something newer — restoring would
+            // clobber it, so leave the pasteboard alone.
             let deadline = Date().addingTimeInterval(1.5)
-            var didObserveChange = false
             while Date() < deadline {
                 try? await Task.sleep(nanoseconds: 80_000_000)
                 if pasteboard.changeCount != changeCountAfterOverwrite {
-                    didObserveChange = true
-                    break
+                    // Another writer owns the clipboard now. Claim the box so
+                    // the hard-timeout below can't restore over it either.
+                    _ = restoredBox.claim()
+                    Log.ui.notice("Clipboard rewritten by another app — skipping snapshot restore")
+                    return
                 }
             }
 
-            if didObserveChange, restoredBox.claim() {
+            if restoredBox.claim() {
                 Self.restore(snapshot: snapshot, to: pasteboard)
-            } else if !didObserveChange {
-                // Target never consumed the clipboard — preserve our paste so
-                // the user can paste manually. This matches the pre-existing
-                // conservative behavior.
-                Log.ui.notice("Paste target did not read clipboard within 1.5s — leaving inserted text")
             }
-
-            _ = changeCountBeforeOverwrite
         }
 
         // Hard-timeout safety net. DispatchQueue.main.asyncAfter fires even if
         // the Task above is suspended/cancelled, so a backgrounded app can't
-        // leave the user's clipboard with our inserted text. Only restores
-        // if the poll Task hasn't already done so AND the app's paste has
-        // been consumed (or we've waited long enough to assume it has).
+        // leave the user's clipboard with our inserted text. Same ownership
+        // rule: only restore while our write is still the latest.
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [snapshot] in
-            guard restoredBox.claim() else { return }
-            if pasteboard.changeCount != changeCountAfterOverwrite {
-                Self.restore(snapshot: snapshot, to: pasteboard)
-            }
+            guard pasteboard.changeCount == changeCountAfterOverwrite,
+                  restoredBox.claim() else { return }
+            Self.restore(snapshot: snapshot, to: pasteboard)
         }
 
         return .success

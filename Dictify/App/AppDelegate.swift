@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var isCompletingOnboarding = false
     private var mainWindow: NSWindow?
     private var menuBarManager: MenuBarManager?
+    private var mediaController: MediaPlaybackController?
     private var cancellables = Set<AnyCancellable>()
 
     override init() {
@@ -52,13 +53,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appState.statsStore = statsStore
         appState.keychainManager = keychainManager
 
+        let mediaController = MediaPlaybackController()
+        self.mediaController = mediaController
+
         pipeline = TranscriptionPipeline(
             appState: appState,
             keychainManager: keychainManager,
             dictionaryStore: dictionaryStore,
             snippetStore: snippetStore,
             historyStore: historyStore,
-            statsStore: statsStore
+            statsStore: statsStore,
+            mediaController: mediaController
         )
 
         menuBarManager = MenuBarManager(
@@ -238,6 +243,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // Quitting mid-dictation must not leave system media paused forever.
+        mediaController?.resumeOnTerminate()
         keyMonitor?.invalidate()
         permissionManager?.invalidate()
         indicatorWindow?.invalidate()
@@ -340,6 +347,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         window.titlebarAppearsTransparent = true
+        // Same cream as the main window — otherwise onboarding renders on the
+        // system near-white and looks like a different app.
+        window.backgroundColor = .appWindowBackground
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = true
         window.level = .normal

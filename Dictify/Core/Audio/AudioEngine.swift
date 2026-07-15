@@ -233,7 +233,11 @@ final class AudioEngine: @unchecked Sendable {
             audioBuffer.reserveCapacity(
                 Int(targetSampleRate * Double(Constants.Audio.maxRecordingDuration)) * MemoryLayout<Float>.size
             )
-            recordingStartTime = Date()
+            // Set on the first delivered tap buffer (`handleTap`), not here:
+            // engine start can spend 0.2–1.5s settling a Bluetooth route, and
+            // counting that as recording time inflates duration, deflates WPM,
+            // and lets a near-empty capture pass the min-duration gate.
+            recordingStartTime = nil
             currentConverter = nil
             currentInputFormat = nil
             currentTargetFormat = targetFormat
@@ -381,7 +385,13 @@ final class AudioEngine: @unchecked Sendable {
         levelCallback: @escaping @MainActor @Sendable ([Float]) -> Void
     ) {
         let (cachedConverter, cachedInputFormat, targetFormat, isOverflowed) = stateQueue.sync {
-            (currentConverter, currentInputFormat, currentTargetFormat, overflowed)
+            // First delivered buffer marks the true start of capture. Only set
+            // when nil so a mid-capture recovery restart keeps the original
+            // clock; `stopCapture`/start-failure rollback clear it.
+            if recordingStartTime == nil {
+                recordingStartTime = Date()
+            }
+            return (currentConverter, currentInputFormat, currentTargetFormat, overflowed)
         }
         guard !isOverflowed else { return }
         guard let targetFormat = targetFormat else { return }

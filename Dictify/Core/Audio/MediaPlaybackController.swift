@@ -16,6 +16,10 @@ import MediaRemoteAdapter
 final class MediaPlaybackController {
     #if arch(arm64)
     private let controller = MediaController()
+    /// Mirrors the pipeline's `didPauseMedia`, tracked here too so a
+    /// synchronous caller (app termination) can resume without hopping onto
+    /// the pipeline actor.
+    private var pausedByUs = false
     #endif
 
     init() {}
@@ -24,6 +28,14 @@ final class MediaPlaybackController {
     /// Pauses system media if it is currently playing.
     /// - Returns: `true` only if we issued a pause command.
     func pauseIfPlaying() async -> Bool {
+        let paused = await pauseIfPlayingInternal()
+        if paused {
+            pausedByUs = true
+        }
+        return paused
+    }
+
+    private func pauseIfPlayingInternal() async -> Bool {
         await withCheckedContinuation { continuation in
             // `MediaController` can fire its callback more than once; a one-shot
             // gate prevents a double `resume` of the continuation (a crash).
@@ -60,11 +72,20 @@ final class MediaPlaybackController {
     /// Resumes media only if `wePaused` is `true` (i.e. `pauseIfPlaying` paused it).
     func resumeIfWePaused(_ wePaused: Bool) {
         guard wePaused else { return }
+        pausedByUs = false
         controller.play()
         Log.media.notice("Resumed system media after dictation")
+    }
+
+    /// Best-effort synchronous resume for app termination — fires the play
+    /// command at the helper before the process exits, so quitting mid-dictation
+    /// doesn't leave system media paused forever.
+    func resumeOnTerminate() {
+        resumeIfWePaused(pausedByUs)
     }
     #else
     func pauseIfPlaying() async -> Bool { false }
     func resumeIfWePaused(_ wePaused: Bool) {}
+    func resumeOnTerminate() {}
     #endif
 }

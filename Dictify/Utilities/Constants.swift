@@ -47,6 +47,7 @@ enum Constants {
         static var dictionaryFileURL: URL { appSupportDirectory.appendingPathComponent("dictionary.json") }
         static var snippetsFileURL: URL { appSupportDirectory.appendingPathComponent("snippets.json") }
         static var historyFileURL: URL { appSupportDirectory.appendingPathComponent("history.json") }
+        static var statsFileURL: URL { appSupportDirectory.appendingPathComponent("stats.json") }
     }
 
     enum Diagnostics {

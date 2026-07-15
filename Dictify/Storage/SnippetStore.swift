@@ -12,17 +12,20 @@ final class SnippetStore: ObservableObject {
 
     /// Builds the snippet block injected into the refinement prompt so the model
     /// expands cues — including misheard/reformatted ones the local whole-word
-    /// matcher would miss. Bodies are resolved via `expandedBody()` here (on the
-    /// main actor) so `{{date}}`/`{{time}}`/`{{clipboard}}` are substituted before
-    /// the prompt is sent; the model never has to compute them. Returns "" when no
-    /// snippets exist so the prompt's cacheable prefix stays byte-identical.
+    /// matcher would miss. `{{date}}`/`{{time}}` are resolved here (on the main
+    /// actor) so the model never has to compute them; `{{clipboard}}` is kept as
+    /// a literal placeholder because clipboard contents must never be sent to
+    /// the API — the pipeline substitutes it locally after refinement. Returns
+    /// "" when no snippets exist so the prompt's cacheable prefix stays
+    /// byte-identical.
     func snippetContext() -> String {
         let lines: [String] = snippets.compactMap { snippet in
             let cue = snippet.cue.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cue.isEmpty else { return nil }
             // Single-line the body so each snippet stays one prompt line; the model
             // restores any intended line breaks from the body's literal "\n".
-            let body = snippet.expandedBody().replacingOccurrences(of: "\n", with: "\\n")
+            let body = snippet.expandedBody(resolvingClipboard: false)
+                .replacingOccurrences(of: "\n", with: "\\n")
             return "  \"\(cue)\" => \(body)"
         }
         return lines.joined(separator: "\n")
@@ -84,6 +87,21 @@ final class SnippetStore: ObservableObject {
         }
         pieces.append(String(text[cursor...]))
         return pieces.joined()
+    }
+
+    /// Whether any snippet cue window-matches in `text` (same rules as
+    /// `expandCues`). Cheap local pre-check the pipeline uses on short
+    /// transcripts to decide whether the refinement model is still needed
+    /// for cue expansion.
+    func containsCue(in text: String) -> Bool {
+        var cues: [String: String] = [:]
+        for snippet in snippets {
+            let cueNorm = Self.normalizeForCueMatch(snippet.cue)
+            guard !cueNorm.isEmpty else { continue }
+            cues[cueNorm] = ""
+        }
+        guard !cues.isEmpty else { return false }
+        return !Self.cueMatches(in: Self.tokenize(text), cues: cues).isEmpty
     }
 
     /// Lowercases and strips everything but letters/digits, so word splits and

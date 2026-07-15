@@ -87,7 +87,8 @@ actor TranscriptionPipeline {
          dictionaryStore: DictionaryStore,
          snippetStore: SnippetStore,
          historyStore: HistoryStore,
-         statsStore: StatsStore) {
+         statsStore: StatsStore,
+         mediaController: MediaPlaybackController) {
         self.appState = appState
         self.audioEngine = AudioEngine()
         self.groqClient = GroqClient(keychainManager: keychainManager)
@@ -101,7 +102,9 @@ actor TranscriptionPipeline {
         self.statsStore = statsStore
         self.settings = appState.settings
         self.elapsedTimer = MainActor.assumeIsolated { ElapsedTimer() }
-        self.mediaController = MainActor.assumeIsolated { MediaPlaybackController() }
+        // Injected (not created here) so AppDelegate can reach it for the
+        // best-effort media resume on app termination.
+        self.mediaController = mediaController
     }
 
     /// See `AudioEngine.prewarm()` — called once at launch after permissions
@@ -354,10 +357,19 @@ actor TranscriptionPipeline {
         let refinementEnabled = await MainActor.run { settings.refinementEnabled }
         let hasSnippets = await MainActor.run { !snippetStore.snippets.isEmpty }
         // Skip refinement entirely for short clean utterances — cuts ~200-800ms
-        // off quick commands like "yes", "next slide", "ok sounds good". But never
-        // skip when snippets exist: cues are often short, clean utterances and
-        // snippet expansion happens only on the refinement path now.
-        let skipRefinement = !hasSnippets && Self.shouldSkipRefinement(rawTranscript: rawTranscript)
+        // off quick commands like "yes", "next slide", "ok sounds good". With
+        // snippets, stay on the refinement path only when a cue plausibly
+        // appears in the transcript: short junk transcripts (Whisper
+        // hallucinating on silence/noise) otherwise reach GPT-OSS with nothing
+        // to clean, and it can parrot a few-shot exemplar into the output. The
+        // local matcher already catches split/reformatted cues ("paste clip"),
+        // so only a badly misheard cue inside a ≤6-word utterance loses model
+        // expansion — far cheaper than inserting hallucinated text.
+        var skipRefinement = Self.shouldSkipRefinement(rawTranscript: rawTranscript)
+        if skipRefinement && hasSnippets {
+            let cuePresent = await MainActor.run { snippetStore.containsCue(in: rawTranscript) }
+            skipRefinement = !cuePresent
+        }
         if refinementEnabled && !skipRefinement {
             await MainActor.run {
                 appState.pipelineState = .refining
@@ -424,6 +436,17 @@ actor TranscriptionPipeline {
             }
         }
 
+        // The refinement prompt carries {{clipboard}} as a literal placeholder —
+        // clipboard contents never leave the Mac — so resolve whatever the model
+        // (or a body spliced above) left behind, locally, right before insertion.
+        if finalText.contains("{{clipboard}}") {
+            let textToResolve = finalText
+            finalText = await MainActor.run {
+                let clipboard = NSPasteboard.general.string(forType: .string) ?? ""
+                return textToResolve.replacingOccurrences(of: "{{clipboard}}", with: clipboard)
+            }
+        }
+
         await MainActor.run {
             appState.pipelineState = .inserting
         }
@@ -457,6 +480,7 @@ actor TranscriptionPipeline {
         processingTask = nil
         audioEngine.stopCapture()
         await stopElapsedTimer()
+        await resumeMediaIfNeeded()
         await MainActor.run {
             appState.pipelineState = .idle
             appState.audioLevels = Array(repeating: 0, count: 15)
