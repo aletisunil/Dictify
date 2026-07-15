@@ -16,12 +16,14 @@ extension NSColor {
     }
 
     /// Card / control background — a lighter cream that lifts off the window in
-    /// light mode; system control colour in dark. Step widened from the window
-    /// so cards read as lifted without leaning entirely on the hairline stroke.
+    /// light mode; system control colour in dark. Kept clearly warm (not the
+    /// former near-white #FFFBF1, which read as pure white across the large
+    /// Home cards): a mid step between the window cream and white, so cards
+    /// lift via the hairline + shadow while staying inside the cream palette.
     static let appCardBackground = NSColor(name: "appCardBackground") { appearance in
         appearance.isDark
             ? .controlBackgroundColor
-            : NSColor(calibratedRed: 1.0, green: 0.984, blue: 0.945, alpha: 1.0) // #FFFBF1
+            : NSColor(calibratedRed: 0.984, green: 0.957, blue: 0.898, alpha: 1.0) // #FBF4E5
     }
 
     /// Sidebar background — a darker cream step below the window in light mode;

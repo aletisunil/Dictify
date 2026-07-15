@@ -347,6 +347,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         window.titlebarAppearsTransparent = true
+        // Same cream as the main window — otherwise onboarding renders on the
+        // system near-white and looks like a different app.
+        window.backgroundColor = .appWindowBackground
         window.isReleasedWhenClosed = false
         window.isMovableByWindowBackground = true
         window.level = .normal
