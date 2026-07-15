@@ -148,12 +148,15 @@ final class AccessibilityInserter: @unchecked Sendable {
 
         // Setting kAXValueAttribute replaces the field's ENTIRE contents, so it
         // is only safe when the field is currently empty (replacement ==
-        // insertion). A non-empty field falls through to clipboard paste, which
-        // inserts at the caret instead of wiping what the user already typed.
+        // insertion). A non-empty or unreadable field falls through to clipboard
+        // paste, which inserts at the caret instead of risking replacement of
+        // contents we could not inspect.
         // Also restricted to known text roles to avoid crashing non-standard
         // elements (Electron, CEF, etc.)
-        let fieldIsEmpty = (snapshotBeforeInsertion.value ?? "").isEmpty
-        if fieldIsEmpty, let role = diagnostics.role, textRoles.contains(role) {
+        if let fieldValue = snapshotBeforeInsertion.value,
+           fieldValue.isEmpty,
+           let role = diagnostics.role,
+           textRoles.contains(role) {
             let setResult = AXUIElementSetAttributeValue(
                 axElement,
                 kAXValueAttribute as CFString,
