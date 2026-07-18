@@ -23,6 +23,13 @@ struct AboutSettingsView: View {
                             .font(.dsCaption)
                             .foregroundStyle(.tertiary)
                     }
+
+                    Button {
+                        AppDelegate.shared?.updaterManager?.checkForUpdates()
+                    } label: {
+                        Label("Check for Updates…", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .controlSize(.small)
                 }
                 .padding(.top, DS.Space.xxl)
 

@@ -55,8 +55,10 @@
 		A10000062 /* DiagnosticsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000062 /* DiagnosticsBundle.swift */; };
 		A10000070 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000070 /* Theme.swift */; };
 		A10000090 /* MediaPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000090 /* MediaPlaybackController.swift */; };
+		A10000091 /* UpdaterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000091 /* UpdaterManager.swift */; };
 		E0EA9DCA2FF218C50041D808 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DC92FF218C50041D808 /* MediaRemoteAdapter */; };
 		E0EA9DCB2FF218C50041D808 /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DC92FF218C50041D808 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		E0EA9DD12FF218C50041D808 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DD02FF218C50041D808 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -111,6 +113,7 @@
 		B10000062 /* DiagnosticsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsBundle.swift; sourceTree = "<group>"; };
 		B10000070 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		B10000090 /* MediaPlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPlaybackController.swift; sourceTree = "<group>"; };
+		B10000091 /* UpdaterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -119,6 +122,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E0EA9DCA2FF218C50041D808 /* MediaRemoteAdapter in Frameworks */,
+				E0EA9DD12FF218C50041D808 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -169,6 +173,7 @@
 				B10000001 /* DictifyApp.swift */,
 				B10000002 /* AppDelegate.swift */,
 				B10000003 /* AppState.swift */,
+				B10000091 /* UpdaterManager.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -419,6 +424,7 @@
 			mainGroup = D10000001;
 			packageReferences = (
 				E0EA9DC82FF218C50041D808 /* XCRemoteSwiftPackageReference "mediaremote-adapter" */,
+				E0EA9DCF2FF218C50041D808 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			productRefGroup = D10000099 /* Products */;
 			projectDirPath = "";
@@ -449,6 +455,7 @@
 				A10000001 /* DictifyApp.swift in Sources */,
 				A10000002 /* AppDelegate.swift in Sources */,
 				A10000003 /* AppState.swift in Sources */,
+				A10000091 /* UpdaterManager.swift in Sources */,
 				A10000004 /* KeyMonitor.swift in Sources */,
 				A10000005 /* AudioEngine.swift in Sources */,
 				A10000090 /* MediaPlaybackController.swift in Sources */,
@@ -706,6 +713,14 @@
 				kind = branch;
 			};
 		};
+		E0EA9DCF2FF218C50041D808 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.4;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -713,6 +728,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E0EA9DC82FF218C50041D808 /* XCRemoteSwiftPackageReference "mediaremote-adapter" */;
 			productName = MediaRemoteAdapter;
+		};
+		E0EA9DD02FF218C50041D808 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0EA9DCF2FF218C50041D808 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

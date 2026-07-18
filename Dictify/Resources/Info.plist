@@ -26,5 +26,11 @@
 	<string></string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Dictify needs microphone access to transcribe your voice.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/aletisunil/Dictify/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>eCpOjSrcoeeakONpxdtaY/CP61np1vJqXkp+sOehins=</string>
 </dict>
 </plist>

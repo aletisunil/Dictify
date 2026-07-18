@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mainWindow: NSWindow?
     private var menuBarManager: MenuBarManager?
     private var mediaController: MediaPlaybackController?
+    private(set) var updaterManager: UpdaterManager?
     private var cancellables = Set<AnyCancellable>()
 
     override init() {
@@ -40,6 +41,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         permissionManager = PermissionManager()
         indicatorWindow = IndicatorWindow(appState: appState)
+        let updaterManager = UpdaterManager()
+        self.updaterManager = updaterManager
 
         let keychainManager = KeychainManager()
         let dictionaryStore = DictionaryStore()
@@ -75,6 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.showOnboarding()
                 }
             },
+            checkForUpdatesItem: updaterManager.makeCheckForUpdatesMenuItem(),
             onQuit: {
                 NSApp.terminate(nil)
             }
@@ -135,6 +139,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showOnboarding()
             return
         }
+
+        // Onboarding already done: background update checks can't interrupt
+        // the first-run flow, safe to start now. First-run users start the
+        // updater when onboarding completes instead.
+        updaterManager?.start()
 
         if granted {
             startKeyMonitor()
@@ -386,6 +395,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.isCompletingOnboarding = false
             self?.startKeyMonitor()
             self?.showMainWindow()
+            self?.updaterManager?.start()
         }
     }
 

@@ -149,14 +149,67 @@ jobs:
           NOTARY_PROFILE: dictify-notary
         run: ./scripts/package-dmg.sh
 
+      # Sparkle in-app updates: sign the DMG with the EdDSA key and emit an
+      # appcast.xml uploaded as a release asset. The app's SUFeedURL points at
+      # .../releases/latest/download/appcast.xml. The previous release's
+      # appcast is downloaded first and generate_appcast appends the new entry
+      # to it (verified: entries whose archives are absent are preserved with
+      # their original per-tag URLs), so the feed accumulates version history
+      # and Sparkle can pick the newest build each client is eligible for.
+      # SPARKLE_ED_PRIVATE_KEY must match SUPublicEDKey in Info.plist
+      # (generated with Sparkle's generate_keys). The generate_appcast tool is
+      # downloaded at the exact version SwiftPM resolved for the app, so the
+      # generator can never drift from the shipped framework.
+      - name: Generate Sparkle appcast
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$SPARKLE_ED_PRIVATE_KEY" ]]; then
+            echo "SPARKLE_ED_PRIVATE_KEY secret not set" >&2
+            exit 1
+          fi
+          SPARKLE_VERSION="$(jq -r '.pins[] | select(.identity == "sparkle") | .state.version' \
+            Dictify.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved)"
+          if [[ -z "$SPARKLE_VERSION" || "$SPARKLE_VERSION" == "null" ]]; then
+            echo "Could not read Sparkle version from Package.resolved" >&2
+            exit 1
+          fi
+          echo "Using Sparkle $SPARKLE_VERSION (from Package.resolved)"
+          curl -fsSL -o "$RUNNER_TEMP/sparkle.tar.xz" \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          tar -xJf "$RUNNER_TEMP/sparkle.tar.xz" -C "$RUNNER_TEMP/sparkle"
+          # Seed with the previous release's appcast so history accumulates.
+          # 404 on the very first release is fine - start a fresh feed.
+          if ! curl -fsSL -o dist/appcast.xml \
+                "https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/appcast.xml"; then
+            echo "No previous appcast found - starting a new feed."
+            rm -f dist/appcast.xml
+          fi
+          KEY_FILE="$RUNNER_TEMP/sparkle_ed_key"
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$KEY_FILE"
+          "$RUNNER_TEMP/sparkle/bin/generate_appcast" \
+            --ed-key-file "$KEY_FILE" \
+            --download-url-prefix "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/" \
+            --link "https://github.com/${GITHUB_REPOSITORY}/releases" \
+            -o dist/appcast.xml \
+            dist
+          rm -f "$KEY_FILE"
+          cat dist/appcast.xml
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/Dictify.dmg
             dist/Dictify.dmg.sha256
+            dist/appcast.xml
           generate_release_notes: true
           fail_on_unmatched_files: true
+          # SUFeedURL and the appcast-seeding step both resolve releases/latest;
+          # pin this release as latest explicitly so ranking can never drift.
+          make_latest: "true"
 
       - name: Clean up keychain
         if: always()

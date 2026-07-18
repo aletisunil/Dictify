@@ -50,6 +50,18 @@ prepared_entitlements() {
   printf '%s' "$prepared_path"
 }
 
+# Sign one nested item (bundle or Mach-O) with hardened runtime. Entitlements
+# the item already carries (e.g. a sandboxed XPC service) are preserved - a
+# plain re-sign would strip them. Uses $identity from the calling scope.
+sign_item() {
+  local item="$1" preserve=""
+  if codesign -d --entitlements - "$item" 2>/dev/null | grep -q .; then
+    preserve="--preserve-metadata=entitlements"
+  fi
+  codesign --force --options runtime --timestamp ${preserve:+$preserve} \
+    --sign "$identity" "$item"
+}
+
 sign_app() {
   local app_path="$1"
   [[ -d "$app_path" ]] || die "App bundle not found: $app_path"
@@ -70,15 +82,25 @@ sign_app() {
   trap 'rm -f "${prepared_entitlements_path:-}"' RETURN
   prepared_entitlements_path="$(prepared_entitlements "$ENTITLEMENTS_PATH" "$prepared_entitlements_path")"
 
-  # Deep sign all nested frameworks, dylibs, and helper tools.
-  # Sign leaves first (--deep alone is unreliable for nested content), then the app wrapper.
-  find "$app_path/Contents" \
-    \( -name "*.dylib" -o -name "*.framework" -o -name "*.bundle" -o -name "*.xpc" \) \
+  # Deep sign all nested code inside-out. Sign leaves first (--deep alone is
+  # unreliable for nested content), then the app wrapper. `find -d` walks
+  # depth-first so nested bundles are signed before the bundle that contains
+  # them. Matching bare executables (-type f -perm -111, filtered to Mach-O
+  # below) covers helper tools that live loose inside frameworks - e.g.
+  # Sparkle's Autoupdate and Updater.app - without hardcoding any framework's
+  # internal layout.
+  find -d "$app_path/Contents" \
+    \( -name "*.dylib" -o -name "*.framework" -o -name "*.bundle" \
+       -o -name "*.xpc" -o -name "*.app" -o \( -type f -perm -111 \) \) \
     -print 2>/dev/null | while IFS= read -r item; do
+    # The main executable is sealed by the final app-wrapper sign.
+    [[ "$item" == "$app_path/Contents/MacOS/"* ]] && continue
+    # Plain executable files must be Mach-O; skip scripts and other resources.
+    if [[ -f "$item" && "$item" != *.dylib ]]; then
+      file -b "$item" | grep -q "Mach-O" || continue
+    fi
     log "  sign nested: $(basename "$item")"
-    codesign --force --options runtime --timestamp \
-      --sign "$identity" \
-      "$item"
+    sign_item "$item"
   done
 
   log "Signing main bundle"

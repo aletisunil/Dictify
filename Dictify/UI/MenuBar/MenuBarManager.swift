@@ -4,11 +4,17 @@ import AppKit
 final class MenuBarManager {
     private var statusItem: NSStatusItem?
     private let onOpen: @MainActor () -> Void
+    private let checkForUpdatesItem: NSMenuItem
     private let onQuit: @MainActor () -> Void
     private let iconSize = NSSize(width: 18, height: 18)
 
-    init(onOpen: @escaping @MainActor () -> Void, onQuit: @escaping @MainActor () -> Void) {
+    init(
+        onOpen: @escaping @MainActor () -> Void,
+        checkForUpdatesItem: NSMenuItem,
+        onQuit: @escaping @MainActor () -> Void
+    ) {
         self.onOpen = onOpen
+        self.checkForUpdatesItem = checkForUpdatesItem
         self.onQuit = onQuit
         setup()
     }
@@ -36,6 +42,10 @@ final class MenuBarManager {
         let openItem = NSMenuItem(title: "Open Dictify", action: #selector(openClicked), keyEquivalent: "")
         openItem.target = self
         menu.addItem(openItem)
+
+        menu.addItem(.separator())
+
+        menu.addItem(checkForUpdatesItem)
 
         menu.addItem(.separator())
 
