@@ -15,6 +15,11 @@ final class MenuBarManager {
 
     private func setup() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        // Unique autosave name. macOS 26 keys menu-bar-item visibility by this
+        // name alone (com.apple.controlcenter "NSStatusItem Visible <name>"),
+        // so the AppKit default "Item-0" collides with every other app that
+        // never set one - hiding another app's icon hid ours too.
+        item.autosaveName = "DictifyMenuBar"
         if let button = item.button {
             button.image = makeIcon()
             button.image?.isTemplate = true
