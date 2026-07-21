@@ -157,7 +157,7 @@ struct GeneralSettingsView: View {
 
                 Toggle("Match tone to the app", isOn: $appAwareToneEnabled)
                     .disabled(!refinementEnabled)
-                Text("Adjusts formality to fit the app you're dictating into — polished for email, casual for chat, literal for code. Web apps in a browser stay neutral.")
+                Text("Adjusts formality to fit the writing context — including Gmail and Outlook on the web — without sending window titles or message subjects.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

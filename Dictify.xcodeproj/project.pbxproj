@@ -16,6 +16,8 @@
 		A10000007 /* GroqClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000007 /* GroqClient.swift */; };
 		A10000008 /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000008 /* WhisperService.swift */; };
 		A10000009 /* GPTOssService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000009 /* GPTOssService.swift */; };
+		A10000092 /* RefinementOutputGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000092 /* RefinementOutputGuard.swift */; };
+		A10000093 /* SpeechEvidenceAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000093 /* SpeechEvidenceAnalyzer.swift */; };
 		A10000010 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000010 /* APIError.swift */; };
 		A10000011 /* AccessibilityInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000011 /* AccessibilityInserter.swift */; };
 		A10000012 /* ClipboardPaster.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000012 /* ClipboardPaster.swift */; };
@@ -56,6 +58,7 @@
 		A10000070 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000070 /* Theme.swift */; };
 		A10000090 /* MediaPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000090 /* MediaPlaybackController.swift */; };
 		A10000091 /* UpdaterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000091 /* UpdaterManager.swift */; };
+		A20000001 /* ReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000001 /* ReliabilityTests.swift */; };
 		E0EA9DCA2FF218C50041D808 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DC92FF218C50041D808 /* MediaRemoteAdapter */; };
 		E0EA9DCB2FF218C50041D808 /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DC92FF218C50041D808 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		E0EA9DD12FF218C50041D808 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DD02FF218C50041D808 /* Sparkle */; };
@@ -72,6 +75,8 @@
 		B10000007 /* GroqClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqClient.swift; sourceTree = "<group>"; };
 		B10000008 /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
 		B10000009 /* GPTOssService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPTOssService.swift; sourceTree = "<group>"; };
+		B10000092 /* RefinementOutputGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefinementOutputGuard.swift; sourceTree = "<group>"; };
+		B10000093 /* SpeechEvidenceAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechEvidenceAnalyzer.swift; sourceTree = "<group>"; };
 		B10000010 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
 		B10000011 /* AccessibilityInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityInserter.swift; sourceTree = "<group>"; };
 		B10000012 /* ClipboardPaster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPaster.swift; sourceTree = "<group>"; };
@@ -114,6 +119,8 @@
 		B10000070 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		B10000090 /* MediaPlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPlaybackController.swift; sourceTree = "<group>"; };
 		B10000091 /* UpdaterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterManager.swift; sourceTree = "<group>"; };
+		B20000000 /* DictifyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DictifyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20000001 /* ReliabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReliabilityTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -126,7 +133,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C20000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXContainerItemProxy section */
+		G20000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E10000010 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E10000001;
+			remoteInfo = Dictify;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		C10000002 /* Embed Frameworks */ = {
@@ -147,6 +171,7 @@
 			isa = PBXGroup;
 			children = (
 				D10000002 /* Dictify */,
+				D20000001 /* DictifyTests */,
 				D10000099 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -204,6 +229,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000005 /* AudioEngine.swift */,
+				B10000093 /* SpeechEvidenceAnalyzer.swift */,
 				B10000090 /* MediaPlaybackController.swift */,
 				B10000006 /* AudioLevelProvider.swift */,
 			);
@@ -216,6 +242,7 @@
 				B10000007 /* GroqClient.swift */,
 				B10000008 /* WhisperService.swift */,
 				B10000009 /* GPTOssService.swift */,
+				B10000092 /* RefinementOutputGuard.swift */,
 				B10000010 /* APIError.swift */,
 			);
 			path = API;
@@ -373,8 +400,17 @@
 			isa = PBXGroup;
 			children = (
 				B10000000 /* Dictify.app */,
+				B20000000 /* DictifyTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D20000001 /* DictifyTests */ = {
+			isa = PBXGroup;
+			children = (
+				B20000001 /* ReliabilityTests.swift */,
+			);
+			path = DictifyTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -398,6 +434,24 @@
 			productReference = B10000000 /* Dictify.app */;
 			productType = "com.apple.product-type.application";
 		};
+		E20000001 /* DictifyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F20000003 /* Build configuration list for PBXNativeTarget "DictifyTests" */;
+			buildPhases = (
+				E20000002 /* Sources */,
+				C20000001 /* Frameworks */,
+				E20000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				G20000002 /* PBXTargetDependency */,
+			);
+			name = DictifyTests;
+			productName = DictifyTests;
+			productReference = B20000000 /* DictifyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -409,6 +463,9 @@
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					E10000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					E20000001 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -431,6 +488,7 @@
 			projectRoot = "";
 			targets = (
 				E10000001 /* Dictify */,
+				E20000001 /* DictifyTests */,
 			);
 		};
 /* End PBXProject section */
@@ -442,6 +500,13 @@
 			files = (
 				A10000038 /* Assets.xcassets in Resources */,
 				A10000044 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E20000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -458,11 +523,13 @@
 				A10000091 /* UpdaterManager.swift in Sources */,
 				A10000004 /* KeyMonitor.swift in Sources */,
 				A10000005 /* AudioEngine.swift in Sources */,
+				A10000093 /* SpeechEvidenceAnalyzer.swift in Sources */,
 				A10000090 /* MediaPlaybackController.swift in Sources */,
 				A10000006 /* AudioLevelProvider.swift in Sources */,
 				A10000007 /* GroqClient.swift in Sources */,
 				A10000008 /* WhisperService.swift in Sources */,
 				A10000009 /* GPTOssService.swift in Sources */,
+				A10000092 /* RefinementOutputGuard.swift in Sources */,
 				A10000010 /* APIError.swift in Sources */,
 				A10000011 /* AccessibilityInserter.swift in Sources */,
 				A10000012 /* ClipboardPaster.swift in Sources */,
@@ -502,7 +569,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E20000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000001 /* ReliabilityTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		G20000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E10000001 /* Dictify */;
+			targetProxy = G20000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F10000010 /* Debug */ = {
@@ -647,6 +730,7 @@
 				);
 				MARKETING_VERSION = 1.18;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app.debug;
+				PRODUCT_MODULE_NAME = Dictify;
 				PRODUCT_NAME = "Dictify Debug";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -674,10 +758,41 @@
 				);
 				MARKETING_VERSION = 1.18;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app;
+				PRODUCT_MODULE_NAME = Dictify;
 				PRODUCT_NAME = Dictify;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		F20000012 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Dictify Debug.app/Contents/MacOS/Dictify Debug";
+			};
+			name = Debug;
+		};
+		F20000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Dictify.app/Contents/MacOS/Dictify";
 			};
 			name = Release;
 		};
@@ -698,6 +813,15 @@
 			buildConfigurations = (
 				F10000012 /* Debug */,
 				F10000013 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F20000003 /* Build configuration list for PBXNativeTarget "DictifyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F20000012 /* Debug */,
+				F20000013 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

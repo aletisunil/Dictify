@@ -19,7 +19,7 @@ Hold `fn` (or any shortcut you prefer) to record. Release to transcribe and inse
 
 Groq GPT-OSS cleans up what you actually said: removes "um" / "uh" / "like", resolves self-corrections ("meet at 2, actually 3" → "meet at 3"), and adds punctuation. Pick **Quality** (`openai/gpt-oss-120b`, best cleanup) or **Fast** (`openai/gpt-oss-20b`, lower latency).
 
-With **Match tone to the app** on, Dictify tells the model which app you're dictating into so the register fits - polished for email and docs, casual for chat, literal for code editors. Web apps in a browser stay neutral.
+With **Match tone to the app** on, Dictify locally classifies the writing context so the register fits - polished for email and docs, casual for chat, literal for code editors. Gmail and Outlook on the web are recognized from the active window, but raw window titles and message subjects are never sent to Groq.
 
 ![General settings](screenshots/general1.png)
 
@@ -35,13 +35,13 @@ Every dictation is saved locally, grouped by day, and searchable across both the
 
 ### Snippets with categories
 
-Spoken triggers that expand to full text blocks. Organize them by category (email, contact, general, …) and use built-in variables like `{{date}}`, `{{time}}`, and `{{clipboard}}`.
+Spoken triggers expand locally and deterministically to full text blocks. Organize them by category (email, contact, general, …) and use built-in variables like `{{date}}`, `{{time}}`, and `{{clipboard}}`; clipboard contents stay on your Mac.
 
 ![Snippets](screenshots/snippets.png)
 
 ### Personal dictionary
 
-Teach Dictify your custom terms, names, brands, and acronyms. They're injected into the Whisper prompt to bias recognition, and GPT-OSS uses them to fix clear sound-alikes during refinement.
+Teach Dictify your custom terms, names, brands, and acronyms, plus optional “heard as” aliases for recurring misrecognitions. Terms bias Whisper recognition, while aliases are corrected locally and deterministically before refinement.
 
 ![Dictionary](screenshots/dictionary.png)
 

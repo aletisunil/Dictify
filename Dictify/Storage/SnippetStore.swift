@@ -4,31 +4,11 @@ import Foundation
 final class SnippetStore: ObservableObject {
     @Published private(set) var snippets: [Snippet] = []
     @Published private(set) var lastSaveError: Error?
-    private let fileURL = Constants.Storage.snippetsFileURL
+    private let fileURL: URL
 
-    init() {
+    init(fileURL: URL = Constants.Storage.snippetsFileURL) {
+        self.fileURL = fileURL
         load()
-    }
-
-    /// Builds the snippet block injected into the refinement prompt so the model
-    /// expands cues — including misheard/reformatted ones the local whole-word
-    /// matcher would miss. `{{date}}`/`{{time}}` are resolved here (on the main
-    /// actor) so the model never has to compute them; `{{clipboard}}` is kept as
-    /// a literal placeholder because clipboard contents must never be sent to
-    /// the API — the pipeline substitutes it locally after refinement. Returns
-    /// "" when no snippets exist so the prompt's cacheable prefix stays
-    /// byte-identical.
-    func snippetContext() -> String {
-        let lines: [String] = snippets.compactMap { snippet in
-            let cue = snippet.cue.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !cue.isEmpty else { return nil }
-            // Single-line the body so each snippet stays one prompt line; the model
-            // restores any intended line breaks from the body's literal "\n".
-            let body = snippet.expandedBody(resolvingClipboard: false)
-                .replacingOccurrences(of: "\n", with: "\\n")
-            return "  \"\(cue)\" => \(body)"
-        }
-        return lines.joined(separator: "\n")
     }
 
     /// Trimmed, non-empty cues — appended to the Whisper prompt so cues are
@@ -50,25 +30,12 @@ final class SnippetStore: ObservableObject {
     /// preserved. Single pass over `text`: spliced bodies are never rescanned,
     /// so one snippet's body can't trigger another snippet's cue.
     ///
-    /// `skippingCuesEmbeddedInBodies` guards the post-refinement path: once the
-    /// model may have spliced bodies into the text, a cue that also occurs
-    /// inside some snippet's body is indistinguishable from expanded output,
-    /// and expanding it again would duplicate the body. Such cues are left to
-    /// the model; cues occurring in no body are safe to expand.
-    func expandCues(in text: String, skippingCuesEmbeddedInBodies: Bool = false) -> String {
-        // First snippet wins when two cues normalize identically (the editor
-        // only blocks exact-duplicate cues, not e.g. "paste-clip" vs "pasteclip").
+    func expandCues(in text: String) -> String {
         var bodyByCue: [String: String] = [:]
         for snippet in snippets {
             let cueNorm = Self.normalizeForCueMatch(snippet.cue)
             guard !cueNorm.isEmpty, bodyByCue[cueNorm] == nil else { continue }
             bodyByCue[cueNorm] = snippet.expandedBody()
-        }
-        if skippingCuesEmbeddedInBodies {
-            let bodies = Array(bodyByCue.values)
-            bodyByCue = bodyByCue.filter { cueNorm, _ in
-                !bodies.contains { Self.cueOccurs(cueNorm, in: $0) }
-            }
         }
         guard !bodyByCue.isEmpty else { return text }
 
@@ -87,21 +54,6 @@ final class SnippetStore: ObservableObject {
         }
         pieces.append(String(text[cursor...]))
         return pieces.joined()
-    }
-
-    /// Whether any snippet cue window-matches in `text` (same rules as
-    /// `expandCues`). Cheap local pre-check the pipeline uses on short
-    /// transcripts to decide whether the refinement model is still needed
-    /// for cue expansion.
-    func containsCue(in text: String) -> Bool {
-        var cues: [String: String] = [:]
-        for snippet in snippets {
-            let cueNorm = Self.normalizeForCueMatch(snippet.cue)
-            guard !cueNorm.isEmpty else { continue }
-            cues[cueNorm] = ""
-        }
-        guard !cues.isEmpty else { return false }
-        return !Self.cueMatches(in: Self.tokenize(text), cues: cues).isEmpty
     }
 
     /// Lowercases and strips everything but letters/digits, so word splits and
@@ -169,19 +121,14 @@ final class SnippetStore: ObservableObject {
         return matches
     }
 
-    /// Whether the cue window-matches anywhere in `text` (same matching rules
-    /// as `expandCues`).
-    private static func cueOccurs(_ normalizedCue: String, in text: String) -> Bool {
-        !cueMatches(in: tokenize(text), cues: [normalizedCue: ""]).isEmpty
-    }
-
-    /// True when a *different* snippet already uses this cue (case-insensitive,
-    /// trimmed). Drives editor validation and the add/update guards.
+    /// True when a different snippet uses an equivalent cue under the same
+    /// normalization as runtime matching. This prevents ambiguous pairs such as
+    /// `pasteclip` and `paste-clip`, where the old behavior silently chose first.
     func cueExists(_ cue: String, excluding id: UUID? = nil) -> Bool {
-        let needle = cue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let needle = Self.normalizeForCueMatch(cue)
         guard !needle.isEmpty else { return false }
         return snippets.contains {
-            $0.id != id && $0.cue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == needle
+            $0.id != id && Self.normalizeForCueMatch($0.cue) == needle
         }
     }
 

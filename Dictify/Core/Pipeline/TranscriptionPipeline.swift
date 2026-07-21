@@ -2,6 +2,14 @@ import AppKit
 import Foundation
 import os
 
+enum TargetWritingContext: String, Sendable {
+    case email
+    case chat
+    case document
+    case code
+    case neutral
+}
+
 /// Main-actor-isolated Timer wrapper. Owning the `Timer` here (rather than on
 /// the pipeline actor via `nonisolated(unsafe)`) guarantees all Timer
 /// interaction stays on the main run loop, which Timer requires.
@@ -48,6 +56,8 @@ actor TranscriptionPipeline {
 
     private var maxRecordingTask: Task<Void, Never>?
     private var processingTask: Task<Void, Never>?
+    private var processingGeneration = 0
+    private var insertionInFlight = false
     /// Monotonic token identifying the latest start/stop/cancel/interruption
     /// transition. `startRecording` snapshots it and re-checks after suspension
     /// points: a mismatch means another transition interleaved via actor
@@ -56,19 +66,18 @@ actor TranscriptionPipeline {
     /// Inputs `startRecording` needs from the main actor, snapshotted in a
     /// single hop so the hotkey→capture path pays one context switch, not four.
     private struct StartContext {
-        let frontmostAppName: String?
+        let writingContext: TargetWritingContext
         let preferredDeviceUID: String
         let pauseMediaDuringDictation: Bool
     }
     /// True when we paused system media for the current dictation, so we only
     /// resume what we actually paused.
     private var didPauseMedia = false
-    /// Name of the app focused when this dictation started — the app the text
-    /// will be inserted into. Snapshotted at start because focus can move by
-    /// insertion time. Used to tune refinement tone when app-aware tone is on.
-    private var frontmostAppName: String?
-    /// Browsers whose window is a web app, not a native app — the bundle name
-    /// tells us nothing about the register, so tone stays neutral for these.
+    /// Coarse context inferred locally when capture starts. Raw browser window
+    /// titles are never logged, persisted, or sent to Groq.
+    private var targetWritingContext: TargetWritingContext = .neutral
+    /// Browsers whose bundle alone cannot identify writing context. Their focused
+    /// window title is classified locally and immediately discarded.
     private static let browserBundleIDs: Set<String> = [
         "com.apple.Safari",
         "com.apple.SafariTechnologyPreview",
@@ -133,20 +142,17 @@ actor TranscriptionPipeline {
                 appState.audioLevels = Array(repeating: 0, count: 15)
                 appState.recordingElapsed = 0
 
-                // Snapshot the app being dictated into now — focus may move to
-                // Dictify's UI or elsewhere before insertion time. NSWorkspace
-                // is main-thread only. Browsers are left nil: the real target
-                // is whatever web app is loaded, which the app name can't
-                // reveal, so refinement stays neutral there.
+                // Snapshot and classify the target now because focus can move
+                // before insertion. Browser titles are inspected only locally
+                // and immediately reduced to a coarse writing context.
                 let app = NSWorkspace.shared.frontmostApplication
-                let appName: String?
-                if let bundleID = app?.bundleIdentifier, Self.browserBundleIDs.contains(bundleID) {
-                    appName = nil
-                } else {
-                    appName = app?.localizedName
-                }
+                let bundleID = app?.bundleIdentifier ?? ""
+                let windowTitle = Self.focusedWindowTitle(for: app?.processIdentifier)
                 return StartContext(
-                    frontmostAppName: appName,
+                    writingContext: Self.classifyWritingContext(
+                        bundleID: bundleID,
+                        windowTitle: windowTitle
+                    ),
                     preferredDeviceUID: settings.selectedInputDeviceUID,
                     pauseMediaDuringDictation: settings.pauseMediaDuringDictation
                 )
@@ -173,7 +179,7 @@ actor TranscriptionPipeline {
             return
         }
 
-        frontmostAppName = context.frontmostAppName
+        targetWritingContext = context.writingContext
 
         do {
             // Async: a Bluetooth route settle can suspend here, so stop/cancel
@@ -276,8 +282,14 @@ actor TranscriptionPipeline {
         }
 
         processingTask?.cancel()
+        processingGeneration &+= 1
+        let currentProcessingGeneration = processingGeneration
         processingTask = Task { [weak self] in
-            await self?.processCapturedAudio(pcmData: pcmData, duration: duration)
+            await self?.processCapturedAudio(
+                pcmData: pcmData,
+                duration: duration,
+                generation: currentProcessingGeneration
+            )
         }
     }
 
@@ -288,7 +300,26 @@ actor TranscriptionPipeline {
         await mediaController.resumeIfWePaused(true)
     }
 
-    private func processCapturedAudio(pcmData: Data, duration: TimeInterval) async {
+    private func processCapturedAudio(
+        pcmData: Data,
+        duration: TimeInterval,
+        generation: Int
+    ) async {
+        guard generation == processingGeneration else { return }
+
+        let speechEvidence = SpeechEvidenceAnalyzer.analyze(pcmData: pcmData)
+        guard speechEvidence.hasSpeech else {
+            Log.pipeline.notice(
+                "Skipped no-speech capture (voicedMs=\(speechEvidence.totalVoicedMilliseconds, privacy: .public), longestRunMs=\(speechEvidence.longestVoicedRunMilliseconds, privacy: .public), thresholdDBFS=\(speechEvidence.thresholdDBFS, privacy: .public))"
+            )
+            await MainActor.run {
+                appState.pipelineState = .idle
+                appState.audioLevels = Array(repeating: 0, count: 15)
+                appState.recordingElapsed = 0
+            }
+            return
+        }
+
         let wavData = WAVEncoder.encode(pcmData: pcmData)
 
         // Start the 100ms focus-handoff wait NOW, concurrent with upload +
@@ -304,7 +335,7 @@ actor TranscriptionPipeline {
         let signpostID = Log.pipelineSignpost.makeSignpostID()
         let state = Log.pipelineSignpost.beginInterval("upload", id: signpostID)
 
-        let rawTranscript: String
+        let transcribedText: String
         do {
             try Task.checkCancellation()
             // Snippet cues ride along with the dictionary terms so Whisper
@@ -314,7 +345,7 @@ actor TranscriptionPipeline {
                 let parts = [dictionaryStore.promptString] + snippetStore.cueTerms
                 return parts.filter { !$0.isEmpty }.joined(separator: ", ")
             }
-            rawTranscript = try await whisperService.transcribe(
+            transcribedText = try await whisperService.transcribe(
                 wavData: wavData,
                 dictionaryPrompt: dictPrompt
             )
@@ -351,25 +382,23 @@ actor TranscriptionPipeline {
             return
         }
 
+        guard generation == processingGeneration, !Task.isCancelled else { return }
+
+        // Apply all dictionary aliases locally before either the short-utterance
+        // fast path or GPT refinement can change the transcription.
+        let rawTranscript = await MainActor.run {
+            dictionaryStore.applyCorrections(to: transcribedText)
+        }
+
         var finalText = rawTranscript
-        var refinementSucceeded = false
 
         let refinementEnabled = await MainActor.run { settings.refinementEnabled }
         let hasSnippets = await MainActor.run { !snippetStore.snippets.isEmpty }
         // Skip refinement entirely for short clean utterances — cuts ~200-800ms
-        // off quick commands like "yes", "next slide", "ok sounds good". With
-        // snippets, stay on the refinement path only when a cue plausibly
-        // appears in the transcript: short junk transcripts (Whisper
-        // hallucinating on silence/noise) otherwise reach GPT-OSS with nothing
-        // to clean, and it can parrot a few-shot exemplar into the output. The
-        // local matcher already catches split/reformatted cues ("paste clip"),
-        // so only a badly misheard cue inside a ≤6-word utterance loses model
-        // expansion — far cheaper than inserting hallucinated text.
-        var skipRefinement = Self.shouldSkipRefinement(rawTranscript: rawTranscript)
-        if skipRefinement && hasSnippets {
-            let cuePresent = await MainActor.run { snippetStore.containsCue(in: rawTranscript) }
-            skipRefinement = !cuePresent
-        }
+        // off quick commands like "yes", "next slide", and standalone snippet
+        // cues. Snippet bodies are expanded locally after this stage, so a cue
+        // never needs a model round-trip merely to substitute its body.
+        let skipRefinement = Self.shouldSkipRefinement(rawTranscript: rawTranscript)
         if refinementEnabled && !skipRefinement {
             await MainActor.run {
                 appState.pipelineState = .refining
@@ -379,23 +408,22 @@ actor TranscriptionPipeline {
             do {
                 try Task.checkCancellation()
                 let dictContext = await MainActor.run { dictionaryStore.promptString }
-                // Built on the main actor: resolves {{date}}/{{time}}/{{clipboard}}
-                // before the prompt is sent. Empty string when no snippets exist.
-                let snippetCtx = await MainActor.run { snippetStore.snippetContext() }
                 let speedMode = await MainActor.run { settings.refinementSpeedMode }
                 let model = Self.resolveGPTOssModel(from: speedMode)
                 let effort = Self.resolveReasoningEffort(from: speedMode)
                 let appAware = await MainActor.run { settings.appAwareToneEnabled }
-                let targetApp = appAware ? (frontmostAppName ?? "") : ""
+                let targetContext = appAware ? targetWritingContext.rawValue : ""
                 finalText = try await gptOssService.refine(
                     rawTranscript: rawTranscript,
                     dictionaryContext: dictContext,
-                    snippetContext: snippetCtx,
-                    targetAppName: targetApp,
+                    // Bodies remain local and are expanded verbatim below. The
+                    // model never receives snippet bodies or clipboard values.
+                    snippetContext: "",
+                    targetContext: targetContext,
                     model: model,
-                    reasoningEffort: effort
+                    reasoningEffort: effort,
+                    allowsSnippetExpansion: false
                 )
-                refinementSucceeded = true
             } catch APIError.cancelled, is CancellationError {
                 Log.pipelineSignpost.endInterval("refine", refineState)
                 Log.pipeline.notice("Refinement cancelled by user")
@@ -421,24 +449,18 @@ actor TranscriptionPipeline {
             return
         }
 
-        // Snippet expansion: the refinement model handles misheard/reformatted
-        // cues (SnippetStore.snippetContext / GPTOssService); this deterministic
-        // pass catches cues the model left literal — small models skip them —
-        // and covers the refinement-disabled/failed paths. After successful
-        // refinement the text may already contain spliced bodies, so cues that
-        // also occur inside a snippet body are skipped there — expanding them
-        // again would duplicate the body.
+        // Snippet substitution is deliberately local and one-pass. Running it
+        // after cleanup keeps each body byte-for-byte out of the model request
+        // and prevents the model from paraphrasing addresses, URLs, or templates.
         if hasSnippets {
             let textToExpand = finalText
-            let skipEmbedded = refinementSucceeded
             finalText = await MainActor.run {
-                snippetStore.expandCues(in: textToExpand, skippingCuesEmbeddedInBodies: skipEmbedded)
+                snippetStore.expandCues(in: textToExpand)
             }
         }
 
-        // The refinement prompt carries {{clipboard}} as a literal placeholder —
-        // clipboard contents never leave the Mac — so resolve whatever the model
-        // (or a body spliced above) left behind, locally, right before insertion.
+        // Resolve clipboard placeholders from a locally expanded body immediately
+        // before insertion. Clipboard contents never leave this Mac.
         if finalText.contains("{{clipboard}}") {
             let textToResolve = finalText
             finalText = await MainActor.run {
@@ -455,14 +477,21 @@ actor TranscriptionPipeline {
         // Wait for the 100ms focus-handoff window we kicked off at the start of
         // processing; by now it has almost certainly already elapsed.
         _ = await focusHandoffTask.value
-        await insertText(finalText)
+        await insertText(finalText, generation: generation)
         Log.pipelineSignpost.endInterval("insert", insertState)
 
+        // A cancellation or newer processing pass may have arrived while the
+        // target app was accepting the insertion. Let the newer generation own
+        // history, statistics, sounds, and the final UI state.
+        guard generation == processingGeneration, !Task.isCancelled else {
+            return
+        }
+
         let record = TranscriptionRecord(rawText: rawTranscript, refinedText: finalText, durationSeconds: duration)
-        let transcribedText = finalText
+        let finalOutputText = finalText
         await MainActor.run {
             historyStore.add(record)
-            statsStore.record(text: transcribedText, durationSeconds: duration)
+            statsStore.record(text: finalOutputText, durationSeconds: duration)
         }
 
         await MainActor.run {
@@ -478,6 +507,7 @@ actor TranscriptionPipeline {
         cancelMaxDurationStop()
         processingTask?.cancel()
         processingTask = nil
+        processingGeneration &+= 1
         audioEngine.stopCapture()
         await stopElapsedTimer()
         await resumeMediaIfNeeded()
@@ -536,26 +566,43 @@ actor TranscriptionPipeline {
         }
     }
 
-    private func insertText(_ text: String) async {
+    private func insertText(_ text: String, generation: Int) async {
         // Focus-handoff wait is now overlapped with upload + refine in
         // `processCapturedAudio`, so by the time we reach here the target app
         // has regained focus. No fresh sleep needed.
 
-        let insertionResult = await accessibilityInserter.insert(text)
+        guard generation == processingGeneration else {
+            Log.pipeline.notice("Skipped stale insertion generation")
+            return
+        }
+        guard !insertionInFlight else {
+            Log.pipeline.notice("Skipped insertion because another insertion is in flight")
+            return
+        }
+        insertionInFlight = true
+        defer { insertionInFlight = false }
 
-        if insertionResult.inserted {
+        let insertionResult = await accessibilityInserter.insert(text)
+        let diagnostics = insertionResult.diagnostics
+        Log.pipeline.notice(
+            "Insertion AX result (bundle=\(diagnostics.frontmostBundleID, privacy: .public), status=\(insertionResult.status.rawValue, privacy: .public), method=\(diagnostics.attemptedMethod ?? "none", privacy: .public), polls=\(diagnostics.verificationPolls, privacy: .public), policySkip=\(diagnostics.skippedForBundlePolicy, privacy: .public))"
+        )
+
+        if insertionResult.status.preventsFallback {
             await MainActor.run {
                 AccessibilityInserter.announceInsertionSuccess()
             }
             return
         }
 
-        // Fallback to clipboard paste — works with Electron apps (WhatsApp, Slack, etc.)
-        let paster = clipboardPaster
-        let diagnostics = insertionResult.diagnostics
-        let pasteOutcome: ClipboardPasteOutcome = await MainActor.run {
-            paster.paste(text, diagnostics: diagnostics)
+        guard generation == processingGeneration else {
+            Log.pipeline.notice("Skipped clipboard fallback for stale insertion generation")
+            return
         }
+
+        // Clipboard is selected up front for browser/Electron bundle policy, or
+        // used only when AX definitively failed before accepting any write.
+        let pasteOutcome = await clipboardPaster.paste(text, diagnostics: diagnostics)
 
         switch pasteOutcome {
         case .success:
@@ -626,6 +673,73 @@ actor TranscriptionPipeline {
             return false
         }
         return true
+    }
+
+    @MainActor
+    private static func focusedWindowTitle(for pid: pid_t?) -> String? {
+        guard let pid, pid > 0 else { return nil }
+        let appElement = AXUIElementCreateApplication(pid)
+        var windowValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            appElement,
+            kAXFocusedWindowAttribute as CFString,
+            &windowValue
+        ) == .success,
+        let windowValue,
+        CFGetTypeID(windowValue) == AXUIElementGetTypeID() else { return nil }
+
+        let window = windowValue as! AXUIElement
+        var titleValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            window,
+            kAXTitleAttribute as CFString,
+            &titleValue
+        ) == .success else { return nil }
+        return titleValue as? String
+    }
+
+    static func classifyWritingContext(
+        bundleID: String,
+        windowTitle: String?
+    ) -> TargetWritingContext {
+        let bundle = bundleID.lowercased()
+        let title = windowTitle?.lowercased() ?? ""
+
+        let nativeEmailBundles: Set<String> = [
+            "com.apple.mail", "com.microsoft.outlook", "com.readdle.smartemail-mac"
+        ]
+        let nativeChatBundles: Set<String> = [
+            "com.tinyspeck.slackmacgap", "com.hnc.discord", "com.electron.whatsapp",
+            "whatsapp", "com.microsoft.teams", "com.microsoft.teams2"
+        ]
+        let nativeDocumentBundles: Set<String> = [
+            "com.apple.pages", "com.apple.textedit", "com.apple.notes",
+            "com.microsoft.word", "notion.id"
+        ]
+        let nativeCodeBundles: Set<String> = [
+            "com.apple.dt.xcode", "com.microsoft.vscode", "com.apple.terminal",
+            "com.googlecode.iterm2", "dev.warp.warp-stable"
+        ]
+
+        if nativeEmailBundles.contains(bundle) { return .email }
+        if nativeChatBundles.contains(bundle) { return .chat }
+        if nativeDocumentBundles.contains(bundle) { return .document }
+        if nativeCodeBundles.contains(bundle) { return .code }
+
+        guard browserBundleIDs.contains(bundleID) else { return .neutral }
+        if ["gmail", "google mail", "outlook", "inbox"].contains(where: title.contains) {
+            return .email
+        }
+        if ["slack", "discord", "teams", "whatsapp", "telegram"].contains(where: title.contains) {
+            return .chat
+        }
+        if ["google docs", "google sheets", "notion", "confluence"].contains(where: title.contains) {
+            return .document
+        }
+        if ["github", "stack overflow", "replit", "codesandbox"].contains(where: title.contains) {
+            return .code
+        }
+        return .neutral
     }
 
     private func handleError(_ error: Error) async {

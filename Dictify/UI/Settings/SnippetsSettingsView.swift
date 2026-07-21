@@ -39,7 +39,7 @@ struct SnippetsSettingsView: View {
                 if !refinementEnabled {
                     InlineHint(
                         icon: "wand.and.stars",
-                        text: "Snippets are expanded by AI refinement. Turn on “AI Text Refinement” in General to use them."
+                        text: "Snippets still expand locally. AI refinement only improves the surrounding dictated text."
                     )
                 }
 
@@ -141,7 +141,7 @@ struct SnippetEditor: View {
                     .creamFormRow()
 
                 if isDup {
-                    Text("A snippet with this cue already exists.")
+                    Text("An equivalent snippet cue already exists (spacing and punctuation are ignored).")
                         .font(.caption)
                         .foregroundStyle(Color.appAlert)
                         .creamFormRow()

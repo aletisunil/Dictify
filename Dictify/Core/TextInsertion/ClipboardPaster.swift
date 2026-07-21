@@ -7,7 +7,20 @@ private let clipboardOnlyBundleIDs: Set<String> = [
     "com.hnc.Discord",                 // Discord
     "notion.id",                       // Notion
     "com.electron.whatsapp",           // WhatsApp
-    "WhatsApp"
+    "WhatsApp",
+    // Browser editors frequently acknowledge AX writes before their web content
+    // exposes the resulting caret/value change. Pick paste up front so Dictify
+    // never performs AX followed by a second insertion into Gmail or another SPA.
+    "com.apple.Safari",
+    "com.apple.SafariTechnologyPreview",
+    "com.google.Chrome",
+    "com.google.Chrome.canary",
+    "com.microsoft.edgemac",
+    "org.mozilla.firefox",
+    "com.brave.Browser",
+    "com.operasoftware.Opera",
+    "company.thebrowser.Browser",
+    "com.vivaldi.Vivaldi"
 ]
 
 enum ClipboardPasteOutcome: Sendable, Equatable {
@@ -18,16 +31,27 @@ enum ClipboardPasteOutcome: Sendable, Equatable {
 
 @MainActor
 final class ClipboardPaster {
+    private var sessionActive = false
+
     /// Returns the outcome synchronously enough for the pipeline to react
     /// (surface an NSAlert etc.). Pasteboard restore happens asynchronously.
     @discardableResult
-    func paste(_ text: String, diagnostics: AccessibilityInserter.Diagnostics? = nil) -> ClipboardPasteOutcome {
+    func paste(_ text: String, diagnostics: AccessibilityInserter.Diagnostics? = nil) async -> ClipboardPasteOutcome {
         // Honour the secure-field signal from the AX pass. We must NOT paste
         // into password or protected fields; do nothing and bubble up.
         if diagnostics?.isSecureOrProtected == true {
             Log.ui.notice("Skipped clipboard paste into secure/protected field")
             return .skippedSecureField
         }
+
+        // Serialize temporary pasteboard ownership. A user can begin another
+        // dictation before a slow host has consumed the previous Cmd+V; allowing
+        // those sessions to overlap risks restoring the wrong clipboard snapshot.
+        while sessionActive {
+            if Task.isCancelled { return .postEventDenied }
+            try? await Task.sleep(nanoseconds: 25_000_000)
+        }
+        sessionActive = true
 
         // Snapshot every item and type on the pasteboard, not just the string.
         // This preserves images, files, RTF, URLs, etc.
@@ -41,6 +65,7 @@ final class ClipboardPaster {
         guard CGPreflightPostEventAccess() else {
             // Cannot synthesize Cmd+V. Restore what we clobbered and bail.
             Self.restore(snapshot: snapshot, to: pasteboard)
+            sessionActive = false
             return .postEventDenied
         }
 
@@ -48,7 +73,7 @@ final class ClipboardPaster {
         // don't double-restore (which would clobber fresh clipboard writes).
         let restoredBox = RestoredBox()
 
-        Task { [snapshot, changeCountAfterOverwrite] in
+        Task { @MainActor [weak self, snapshot, changeCountAfterOverwrite] in
             try? await Task.sleep(nanoseconds: 50_000_000)
             Self.simulatePaste()
 
@@ -66,6 +91,7 @@ final class ClipboardPaster {
                     // Another writer owns the clipboard now. Claim the box so
                     // the hard-timeout below can't restore over it either.
                     _ = restoredBox.claim()
+                    self?.sessionActive = false
                     Log.ui.notice("Clipboard rewritten by another app — skipping snapshot restore")
                     return
                 }
@@ -73,6 +99,7 @@ final class ClipboardPaster {
 
             if restoredBox.claim() {
                 Self.restore(snapshot: snapshot, to: pasteboard)
+                self?.sessionActive = false
             }
         }
 
@@ -80,10 +107,11 @@ final class ClipboardPaster {
         // the Task above is suspended/cancelled, so a backgrounded app can't
         // leave the user's clipboard with our inserted text. Same ownership
         // rule: only restore while our write is still the latest.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [snapshot] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self, snapshot] in
             guard pasteboard.changeCount == changeCountAfterOverwrite,
                   restoredBox.claim() else { return }
             Self.restore(snapshot: snapshot, to: pasteboard)
+            self?.sessionActive = false
         }
 
         return .success

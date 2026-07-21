@@ -14,15 +14,16 @@ final class GPTOssService: @unchecked Sendable {
         rawTranscript: String,
         dictionaryContext: String,
         snippetContext: String = "",
-        targetAppName: String = "",
+        targetContext: String = "",
         model: String = Constants.API.gptOssModelQuality,
-        reasoningEffort: String = "medium"
+        reasoningEffort: String = "medium",
+        allowsSnippetExpansion: Bool = false
     ) async throws -> String {
         let messages: [[String: Any]] = Self.buildMessages(
             systemPrompt: Self.systemPrompt,
             dictionaryContext: dictionaryContext,
             snippetContext: snippetContext,
-            targetAppName: targetAppName,
+            targetContext: targetContext,
             rawTranscript: rawTranscript
         )
 
@@ -61,11 +62,15 @@ final class GPTOssService: @unchecked Sendable {
             throw APIError.emptyTranscription
         }
 
-        // Output-sanity guard: if the model ignored the "don't answer" rule and
-        // produced a long answer to a question in the transcript, fall back to
-        // the raw transcript rather than inserting hallucinated content.
-        if Self.looksLikeModelAnswer(refined: refined, raw: rawTranscript, hasSnippets: !snippetContext.isEmpty) {
-            Log.pipeline.notice("GPT-OSS output failed sanity guard; falling back to raw transcript")
+        // Output-sanity guard: if the model answered, summarized, or otherwise
+        // replaced the transcript, fall back to the raw text rather than insert
+        // generated content the speaker never said.
+        if let rejection = Self.modelAnswerRejection(
+            refined: refined,
+            raw: rawTranscript,
+            allowsSnippetExpansion: allowsSnippetExpansion
+        ) {
+            Log.pipeline.notice("GPT-OSS output rejected (\(rejection, privacy: .public)); falling back to raw transcript")
             return rawTranscript
         }
 
@@ -159,7 +164,7 @@ final class GPTOssService: @unchecked Sendable {
     /// Builds the full message list: static system prompt, the few-shot pairs,
     /// then the variable tail (dictionary/tone/snippets) so the prefix stays
     /// byte-identical and cacheable.
-    private static func buildMessages(systemPrompt: String, dictionaryContext: String, snippetContext: String, targetAppName: String, rawTranscript: String) -> [[String: Any]] {
+    private static func buildMessages(systemPrompt: String, dictionaryContext: String, snippetContext: String, targetContext: String, rawTranscript: String) -> [[String: Any]] {
         let dictionary = dictionaryContext.isEmpty ? "No dictionary terms defined." : dictionaryContext
         var messages: [[String: Any]] = [["role": "system", "content": systemPrompt]]
         for example in fewShotExamples {
@@ -173,13 +178,13 @@ final class GPTOssService: @unchecked Sendable {
         // Optional tone tail — appended only when app-aware tone is enabled and a
         // target app name is known, so the cacheable prefix stays byte-identical
         // in the common (tone-off / unknown-app) case.
-        if !targetAppName.isEmpty {
+        if !targetContext.isEmpty {
             messages.append([
                 "role": "system",
-                "content": "TARGET APP: the cleaned text will be typed into \"\(targetAppName)\". "
-                    + "Match the writing register typical for this app — polished, complete "
-                    + "sentences for email and document apps; relaxed and concise for chat and "
-                    + "messaging apps; literal and unembellished for code editors and terminals. "
+                "content": "TARGET WRITING CONTEXT: \(targetContext). Match only the writing "
+                    + "register appropriate to that context — polished, complete sentences and "
+                    + "natural paragraphing for email/document; relaxed and concise for chat; "
+                    + "literal and unembellished for code. A neutral context gets minimal cleanup. "
                     + "Adjust ONLY tone, formality, and punctuation weight. Do NOT add greetings, "
                     + "sign-offs, or any new content, and do NOT answer anything — every earlier "
                     + "cleanup rule still applies."
@@ -214,7 +219,11 @@ final class GPTOssService: @unchecked Sendable {
     /// transcription as a prompt and produces an answer/preamble. Intentionally
     /// lenient: only triggers when output is clearly divergent from input, so
     /// legitimate cleanup (punctuation, filler removal) passes through.
-    private static func looksLikeModelAnswer(refined: String, raw: String, hasSnippets: Bool) -> Bool {
+    private static func modelAnswerRejection(
+        refined: String,
+        raw: String,
+        allowsSnippetExpansion: Bool
+    ) -> String? {
         // Exemplar echo: on a junk transcript (Whisper hallucinating on
         // silence/noise) the model can parrot one of the few-shot answers —
         // "What's the difference between TCP and UDP…" appearing in the user's
@@ -223,44 +232,13 @@ final class GPTOssService: @unchecked Sendable {
         let refinedNorm = echoNorm(refined)
         if echoNorm(raw) != refinedNorm,
            fewShotExamples.contains(where: { echoNorm($0.assistant) == refinedNorm }) {
-            return true
+            return "few-shot exemplar echo"
         }
-
-        let lower = refined.lowercased()
-
-        // Preamble markers almost never appear in real dictated speech.
-        let preambles = [
-            "sure, ",
-            "sure! ",
-            "of course, ",
-            "of course! ",
-            "here is ",
-            "here's ",
-            "here are ",
-            "i'd be happy to",
-            "i would be happy to",
-            "as an ai",
-            "certainly, ",
-            "certainly! ",
-            "absolutely, "
-        ]
-        for marker in preambles where lower.hasPrefix(marker) {
-            return true
-        }
-
-        // Length runaway — refinement should never substantially expand input.
-        // Allow up to 2.5× the raw character count. Beyond that, the model is
-        // almost certainly generating net-new content. Skipped entirely when
-        // snippets are in play: a single cue can legitimately expand into a large
-        // body (e.g. a pasted clipboard block), which this check would misflag.
-        if !hasSnippets {
-            let rawLen = max(raw.count, 1)
-            if Double(refined.count) > 2.5 * Double(rawLen) && refined.count > 200 {
-                return true
-            }
-        }
-
-        return false
+        return RefinementOutputGuard.rejection(
+            for: refined,
+            raw: raw,
+            allowsSnippetExpansion: allowsSnippetExpansion
+        )?.rawValue
     }
 
     /// Lowercased alphanumerics only, so punctuation/filler-spacing differences
