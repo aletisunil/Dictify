@@ -52,14 +52,24 @@ enum SpeechEvidenceAnalyzer {
             )
         }
 
-        // The quietest fifth of frames approximates the room/microphone floor.
-        // Keep the threshold between -50 and -20 dBFS. That preserves softly
-        // spoken short words in quiet rooms while allowing a loud, steady fan
-        // or room floor to raise the threshold instead of becoming "speech".
+        // The quietest fifth approximates the room/microphone floor when the
+        // capture has meaningful level variation. A nearly uniform, moderate
+        // signal has no trustworthy noise-only population: it may be continuous
+        // speech. Fail open for that case instead of raising the threshold above
+        // every frame and silently discarding the dictation. Very quiet uniform
+        // signals still use the adaptive threshold and remain rejected.
         let sortedLevels = frameLevels.sorted()
-        let noiseIndex = min(sortedLevels.count - 1, sortedLevels.count / 5)
-        let noiseFloor = sortedLevels[noiseIndex]
-        let threshold = min(-20, max(-50, noiseFloor + 10))
+        let lowIndex = min(sortedLevels.count - 1, sortedLevels.count / 5)
+        let highIndex = min(sortedLevels.count - 1, sortedLevels.count * 4 / 5)
+        let lowLevel = sortedLevels[lowIndex]
+        let highLevel = sortedLevels[highIndex]
+        let dynamicRange = highLevel - lowLevel
+        let threshold: Float
+        if dynamicRange < 6, highLevel >= -32 {
+            threshold = -32
+        } else {
+            threshold = min(-20, max(-50, lowLevel + 6))
+        }
 
         var voicedFrames = 0
         var currentRun = 0

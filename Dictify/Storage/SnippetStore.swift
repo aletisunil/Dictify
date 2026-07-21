@@ -22,8 +22,8 @@ final class SnippetStore: ObservableObject {
     }
 
     /// Deterministic fallback expansion for cues the refinement model missed
-    /// (or when refinement is disabled/failed). Matches cues against windows
-    /// of 1–4 consecutive words, comparing case-insensitively with spaces and
+    /// (or when refinement is disabled/failed). Matches cues against consecutive
+    /// words, comparing case-insensitively with spaces and
     /// punctuation stripped — so cue "pasteclip" matches "paste clip",
     /// "Paste Clip.", or "paste-clip". Whole-word only: a cue never matches
     /// inside a longer word. Punctuation around the matched window is
@@ -87,21 +87,21 @@ final class SnippetStore: ObservableObject {
     }
 
     /// Non-overlapping cue matches, earliest-first. Each match is a window of
-    /// 1–4 consecutive tokens whose joined normalized text equals a key of
+    /// consecutive tokens whose joined normalized text equals a key of
     /// `cues` (normalized cue → body). At a given position the longest
     /// matching cue wins, and the narrowest window for that cue is kept so
     /// trailing punctuation-only tokens aren't swallowed.
     private static func cueMatches(
         in tokens: [Token], cues: [String: String]
     ) -> [(start: Int, length: Int, body: String)] {
-        let maxWindow = 4
         let maxCueLength = cues.keys.map(\.count).max() ?? 0
         var matches: [(start: Int, length: Int, body: String)] = []
         var i = 0
         while i < tokens.count {
             var best: (length: Int, joinedCount: Int, body: String)?
             var joined = ""
-            for len in 1...maxWindow where i + len <= tokens.count {
+            let remainingTokenCount = tokens.count - i
+            for len in 1...remainingTokenCount {
                 joined += tokens[i + len - 1].norm
                 // Strict `>` so a punctuation-only token that doesn't grow
                 // `joined` can't widen an already-found match.

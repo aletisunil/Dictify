@@ -25,6 +25,24 @@ final class ReliabilityTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(result.longestVoicedRunMilliseconds, 80)
     }
 
+    func testContinuousModerateSpeechWithoutSilenceHasSpeechEvidence() {
+        var samples: [Float] = []
+        samples.reserveCapacity(16_000)
+        for index in 0..<16_000 {
+            let position = Double(index)
+            let fundamental = 0.05 * sin(position * 0.11)
+            let secondHarmonic = 0.018 * sin(position * 0.23)
+            let thirdHarmonic = 0.009 * sin(position * 0.37)
+            samples.append(Float(fundamental + secondHarmonic + thirdHarmonic))
+        }
+
+        let result = SpeechEvidenceAnalyzer.analyze(pcmData: pcmData(samples))
+
+        XCTAssertTrue(result.hasSpeech)
+        XCTAssertGreaterThanOrEqual(result.totalVoicedMilliseconds, 160)
+        XCTAssertGreaterThanOrEqual(result.longestVoicedRunMilliseconds, 80)
+    }
+
     func testSteadyRoomNoiseFanAndMusicLikeToneAreRejected() {
         let roomNoise = deterministicNoise(sampleCount: 16_000, amplitude: 0.012)
         XCTAssertFalse(SpeechEvidenceAnalyzer.analyze(pcmData: pcmData(roomNoise)).hasSpeech)
@@ -135,6 +153,20 @@ final class ReliabilityTests: XCTestCase {
         XCTAssertEqual(
             store.expandCues(in: "Launch sequence."),
             "Alpha launchsequence."
+        )
+    }
+
+    func testSnippetExpandsCueLongerThanFourWords() {
+        let store = SnippetStore(fileURL: temporaryFile(named: "snippets.json"))
+        let snippet = Snippet(
+            cue: "insert the weekly project status update",
+            body: "Weekly status: on track"
+        )
+        XCTAssertTrue(store.add(snippet))
+
+        XCTAssertEqual(
+            store.expandCues(in: "Please insert the weekly project status update."),
+            "Please Weekly status: on track."
         )
     }
 

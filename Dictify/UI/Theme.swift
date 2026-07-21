@@ -4,33 +4,35 @@ import AppKit
 // MARK: - Theme Colors
 //
 // Light mode swaps macOS's pure-white window/control backgrounds for a warmer
-// cream palette; dark mode keeps the system colors so it stays true black-grey.
+// cream palette; dark mode uses a deeper charcoal palette with clear surface
+// separation. Avoiding the stock system grey gives the app a calmer, richer
+// canvas without flattening cards into the background.
 // Both are dynamic NSColors, so they react to live appearance changes.
 
 extension NSColor {
-    /// App window background — cream in light mode, system window grey in dark.
+    /// App window background — cream in light mode, deep charcoal in dark.
     static let appWindowBackground = NSColor(name: "appWindowBackground") { appearance in
         appearance.isDark
-            ? .windowBackgroundColor
+            ? NSColor(calibratedRed: 0.086, green: 0.094, blue: 0.110, alpha: 1.0) // #16181C
             : NSColor(calibratedRed: 0.961, green: 0.925, blue: 0.843, alpha: 1.0) // #F5ECD7
     }
 
     /// Card / control background — a lighter cream that lifts off the window in
-    /// light mode; system control colour in dark. Kept clearly warm (not the
+    /// light mode; lifted charcoal in dark. Kept clearly warm (not the
     /// former near-white #FFFBF1, which read as pure white across the large
     /// Home cards): a mid step between the window cream and white, so cards
     /// lift via the hairline + shadow while staying inside the cream palette.
     static let appCardBackground = NSColor(name: "appCardBackground") { appearance in
         appearance.isDark
-            ? .controlBackgroundColor
+            ? NSColor(calibratedRed: 0.129, green: 0.141, blue: 0.161, alpha: 1.0) // #212429
             : NSColor(calibratedRed: 0.984, green: 0.957, blue: 0.898, alpha: 1.0) // #FBF4E5
     }
 
     /// Sidebar background — a darker cream step below the window in light mode;
-    /// system control colour in dark.
+    /// an even deeper charcoal in dark, separating navigation from content.
     static let appSidebarBackground = NSColor(name: "appSidebarBackground") { appearance in
         appearance.isDark
-            ? .windowBackgroundColor
+            ? NSColor(calibratedRed: 0.063, green: 0.071, blue: 0.082, alpha: 1.0) // #101215
             : NSColor(calibratedRed: 0.933, green: 0.898, blue: 0.816, alpha: 1.0) // #EEE5D0
     }
 

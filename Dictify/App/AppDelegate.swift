@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarManager: MenuBarManager?
     private var mediaController: MediaPlaybackController?
     private(set) var updaterManager: UpdaterManager?
+    private var shouldOpenOnInitialActivation = false
     private var cancellables = Set<AnyCancellable>()
 
     override init() {
@@ -41,7 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         permissionManager = PermissionManager()
         indicatorWindow = IndicatorWindow(appState: appState)
-        let updaterManager = UpdaterManager()
+        let updaterManager = UpdaterManager.shared
         self.updaterManager = updaterManager
 
         let keychainManager = KeychainManager()
@@ -96,11 +97,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
 
-        // A login-item / reopen launch is not a "default" launch. When the app
-        // auto-starts at login we stay quietly in the menu bar instead of
-        // throwing the main window in the user's face on every reboot.
-        let isLoginLaunch = !(notification.userInfo?["NSApplicationLaunchIsDefaultLaunchKey"] as? Bool ?? true)
-        decideLaunchFlow(isLoginLaunch: isLoginLaunch)
+        // Start returning users quietly, then surface the window only if AppKit
+        // activates this fresh process. Finder/Dock launches become active;
+        // login-item launches remain in the background. Sparkle writes a
+        // short-lived marker immediately before relaunching so its fresh process
+        // stays quiet even if macOS activates it.
+        shouldOpenOnInitialActivation = hasOnboardedDurably()
+            && !UpdaterManager.consumeRecentRelaunchMarker()
+        decideLaunchFlow()
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -110,6 +114,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            appState.permissionReGrantNeeded {
             appState.permissionReGrantNeeded = false
             _ = keyMonitor?.start()
+        }
+
+        // applicationShouldHandleReopen only covers an already-running process.
+        // This one-shot handles a user opening Dictify while it was not running,
+        // without making login-item or updater relaunches intrusive.
+        if shouldOpenOnInitialActivation {
+            shouldOpenOnInitialActivation = false
+            if hasOnboardedDurably(), mainWindow?.isVisible != true {
+                showMainWindow()
+            }
         }
     }
 
@@ -130,7 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor
-    private func decideLaunchFlow(isLoginLaunch: Bool) {
+    private func decideLaunchFlow() {
         let completed = hasOnboardedDurably()
         let granted = permissionManager?.allPermissionsGranted == true
 
@@ -146,21 +160,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updaterManager?.start()
 
         if granted {
-            startKeyMonitor()
-            // Login launches stay in the menu bar; only user-initiated launches
-            // surface the main window.
-            if !isLoginLaunch { showMainWindow() }
+            startKeyMonitor(surfaceFailures: false)
             return
         }
 
         // Fully-onboarded user launched without permissions — could be a real
         // revocation, or just TCC still warming up after reboot. Poll briefly
-        // before surfacing anything intrusive.
-        waitForPermissionsOrSurfaceBanner(isLoginLaunch: isLoginLaunch)
+        // without surfacing anything intrusive.
+        waitForPermissions()
     }
 
     @MainActor
-    private func waitForPermissionsOrSurfaceBanner(isLoginLaunch: Bool) {
+    private func waitForPermissions() {
         guard let permissionManager else { return }
 
         let deadline = Date().addingTimeInterval(3.0)
@@ -170,13 +181,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             permissionManager.checkAll()
             if permissionManager.allPermissionsGranted {
                 appState.permissionReGrantNeeded = false
-                startKeyMonitor()
-                if !isLoginLaunch { showMainWindow() }
+                startKeyMonitor(surfaceFailures: false)
                 return
             }
             if Date() >= deadline {
                 appState.permissionReGrantNeeded = true
-                if !isLoginLaunch { showMainWindow() }
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + checkInterval) {
@@ -200,9 +209,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let desired: NSApplication.ActivationPolicy = showInDock ? .regular : .accessory
         guard NSApp.activationPolicy() != desired else { return }
         NSApp.setActivationPolicy(desired)
-        if showInDock {
-            NSApp.activate()
-        }
     }
 
     @MainActor
@@ -234,7 +240,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Closing the main window must not quit — the global hotkey and
-        // pipeline keep running in the background. The dock icon stays present.
+        // pipeline keep running in the background.
         false
     }
 
@@ -297,7 +303,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.backgroundColor = .appWindowBackground
-        window.isMovableByWindowBackground = true
+        // Keep text fields, editors, and selectable content from turning mouse
+        // drags into window movement. The standard title bar remains draggable.
+        window.isMovableByWindowBackground = false
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 900, height: 620)
         window.center()
@@ -360,7 +368,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // system near-white and looks like a different app.
         window.backgroundColor = .appWindowBackground
         window.isReleasedWhenClosed = false
-        window.isMovableByWindowBackground = true
+        // Interactive onboarding content should receive mouse drags; users can
+        // still move the window from its standard title bar.
+        window.isMovableByWindowBackground = false
         window.level = .normal
         window.hidesOnDeactivate = false
         window.center()
@@ -400,11 +410,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor
-    private func startKeyMonitor() {
+    private func startKeyMonitor(surfaceFailures: Bool = true) {
         guard permissionManager?.allPermissionsGranted == true else {
             if appState.settings.hasCompletedOnboarding {
                 appState.permissionReGrantNeeded = true
-                showMainWindow()
+                if surfaceFailures { showMainWindow() }
             } else {
                 showOnboarding()
             }
@@ -416,7 +426,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             permissionManager?.checkAll()
             if appState.settings.hasCompletedOnboarding {
                 appState.permissionReGrantNeeded = true
-                showMainWindow()
+                if surfaceFailures { showMainWindow() }
             } else {
                 showOnboarding()
             }
