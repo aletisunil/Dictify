@@ -5,7 +5,6 @@ import AVFoundation
 struct GeneralSettingsView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var permissionManager = PermissionManager()
-    @ObservedObject private var updater = UpdaterManager.shared
     @State private var isRecordingShortcut = false
     @State private var eventMonitor: Any?
 
@@ -158,7 +157,7 @@ struct GeneralSettingsView: View {
 
                 Toggle("Match tone to the app", isOn: $appAwareToneEnabled)
                     .disabled(!refinementEnabled)
-                Text("Adjusts formality to fit the writing context — including Gmail and Outlook on the web — without sending window titles or message subjects.")
+                Text("Adjusts formality to fit the app you're dictating into — polished for email, casual for chat, literal for code. Web apps in a browser stay neutral.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -180,7 +179,7 @@ struct GeneralSettingsView: View {
                         AppDelegate.shared?.applyAppearance(newValue)
                     }
                 }
-                Text("\"System\" follows your macOS setting. Light mode uses Dictify's cream palette; dark mode uses a deeper charcoal palette.")
+                Text("\"System\" follows your macOS setting. Light mode uses Dictify's cream palette; dark mode keeps system colors.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -208,28 +207,6 @@ struct GeneralSettingsView: View {
                 Text("When off, Dictify keeps running in the menu bar but its Dock icon is hidden.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-            .creamFormRow()
-
-            Section("Updates") {
-                Toggle("Automatically check for updates", isOn: $updater.automaticallyChecksForUpdates)
-                Text("Checks in the background about once a day.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Check for updates")
-                        Text("Version \(appVersion) installed.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("Check Now…") {
-                        updater.checkForUpdates()
-                    }
-                    .disabled(!updater.canCheckForUpdates)
-                }
             }
             .creamFormRow()
 
@@ -400,9 +377,5 @@ struct GeneralSettingsView: View {
     private func syncLaunchAtLoginState() {
         guard #available(macOS 13.0, *) else { return }
         launchAtLogin = SMAppService.mainApp.status == .enabled
-    }
-
-    private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 }

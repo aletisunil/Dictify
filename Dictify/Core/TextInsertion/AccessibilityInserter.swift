@@ -4,17 +4,7 @@ import Carbon
 
 final class AccessibilityInserter: @unchecked Sendable {
     struct InsertionResult {
-        enum Status: String, Sendable {
-            case committed
-            case acceptedUnverified = "accepted_unverified"
-            case failedBeforeWrite = "failed_before_write"
-
-            var preventsFallback: Bool {
-                self != .failedBeforeWrite
-            }
-        }
-
-        let status: Status
+        let inserted: Bool
         let diagnostics: Diagnostics
     }
 
@@ -45,8 +35,6 @@ final class AccessibilityInserter: @unchecked Sendable {
         var selectedTextSetError: AXError?
         var valueSetError: AXError?
         var skippedForBundlePolicy = false
-        var attemptedMethod: String?
-        var verificationPolls = 0
 
         var isSecureOrProtected: Bool {
             secureEventInputEnabled
@@ -95,7 +83,7 @@ final class AccessibilityInserter: @unchecked Sendable {
         // skip straight to clipboard without wasting a verification round-trip.
         if ClipboardPaster.shouldSkipAccessibilityFor(bundleID: bundleID) {
             diagnostics.skippedForBundlePolicy = true
-            return InsertionResult(status: .failedBeforeWrite, diagnostics: diagnostics)
+            return InsertionResult(inserted: false, diagnostics: diagnostics)
         }
 
         let systemWide = AXUIElementCreateSystemWide()
@@ -111,7 +99,7 @@ final class AccessibilityInserter: @unchecked Sendable {
               let focusedElement,
               CFGetTypeID(focusedElement) == AXUIElementGetTypeID() else {
             diagnostics.focusedElementError = result
-            return InsertionResult(status: .failedBeforeWrite, diagnostics: diagnostics)
+            return InsertionResult(inserted: false, diagnostics: diagnostics)
         }
 
         diagnostics.focusedElementExists = true
@@ -126,7 +114,7 @@ final class AccessibilityInserter: @unchecked Sendable {
 
         // Never inject into password / secure fields.
         if diagnostics.isSecureOrProtected {
-            return InsertionResult(status: .failedBeforeWrite, diagnostics: diagnostics)
+            return InsertionResult(inserted: false, diagnostics: diagnostics)
         }
 
         let textRoles = [
@@ -146,18 +134,15 @@ final class AccessibilityInserter: @unchecked Sendable {
             text as CFTypeRef
         )
         if selectedTextResult == .success {
-            diagnostics.attemptedMethod = "selected_text"
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            let verification = Self.verifyInsertion(text, before: snapshotBeforeInsertion, element: axElement)
+
+            if verification.committed {
+                return InsertionResult(inserted: true, diagnostics: diagnostics)
+            }
+
             diagnostics.selectedTextSetError = selectedTextResult
-            let committed = await Self.pollForInsertion(
-                text,
-                before: snapshotBeforeInsertion,
-                element: axElement,
-                diagnostics: &diagnostics
-            )
-            return InsertionResult(
-                status: committed ? .committed : .acceptedUnverified,
-                diagnostics: diagnostics
-            )
+            return InsertionResult(inserted: false, diagnostics: diagnostics)
         }
         diagnostics.selectedTextSetError = selectedTextResult
 
@@ -178,23 +163,20 @@ final class AccessibilityInserter: @unchecked Sendable {
                 text as CFTypeRef
             )
             if setResult == .success {
-                diagnostics.attemptedMethod = "value"
+                try? await Task.sleep(nanoseconds: 50_000_000)
+                let verification = Self.verifyInsertion(text, before: snapshotBeforeInsertion, element: axElement)
+
+                if verification.committed {
+                    return InsertionResult(inserted: true, diagnostics: diagnostics)
+                }
+
                 diagnostics.valueSetError = setResult
-                let committed = await Self.pollForInsertion(
-                    text,
-                    before: snapshotBeforeInsertion,
-                    element: axElement,
-                    diagnostics: &diagnostics
-                )
-                return InsertionResult(
-                    status: committed ? .committed : .acceptedUnverified,
-                    diagnostics: diagnostics
-                )
+                return InsertionResult(inserted: false, diagnostics: diagnostics)
             }
             diagnostics.valueSetError = setResult
         }
 
-        return InsertionResult(status: .failedBeforeWrite, diagnostics: diagnostics)
+        return InsertionResult(inserted: false, diagnostics: diagnostics)
     }
 
     static var isAccessibilityGranted: Bool {
@@ -339,27 +321,5 @@ final class AccessibilityInserter: @unchecked Sendable {
         return VerificationResult(
             committed: true
         )
-    }
-
-    /// Accessibility clients frequently expose stale field state for a few run-loop
-    /// turns after accepting a write. Poll long enough to observe delayed commits,
-    /// but treat an unobservable successful write as accepted rather than retrying
-    /// through a second insertion mechanism and duplicating the text.
-    @MainActor
-    private static func pollForInsertion(
-        _ text: String,
-        before: TextSnapshot,
-        element: AXUIElement,
-        diagnostics: inout Diagnostics
-    ) async -> Bool {
-        let pollCount = 8
-        for poll in 1...pollCount {
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            diagnostics.verificationPolls = poll
-            if verifyInsertion(text, before: before, element: element).committed {
-                return true
-            }
-        }
-        return false
     }
 }

@@ -36,22 +36,6 @@ final class WhisperService: @unchecked Sendable {
             if allSilent {
                 throw APIError.emptyTranscription
             }
-
-            // Whisper's own fallback thresholds use roughly -1.0 average log
-            // probability and 2.4 compression ratio as suspicious boundaries.
-            // Reject only when every segment crosses both boundaries so a single
-            // difficult proper noun or noisy phrase does not discard real speech.
-            let scoredSegments = segments.filter {
-                $0.avg_logprob != nil && $0.compression_ratio != nil
-            }
-            if scoredSegments.count == segments.count {
-                let allLowConfidenceAndRepetitive = scoredSegments.allSatisfy {
-                    ($0.avg_logprob ?? 0) < -1.0 && ($0.compression_ratio ?? 0) > 2.4
-                }
-                if allLowConfidenceAndRepetitive {
-                    throw APIError.emptyTranscription
-                }
-            }
         }
 
         let text = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -132,6 +116,4 @@ private struct WhisperSegment: Decodable {
     let end: Double
     let text: String
     let no_speech_prob: Double?
-    let avg_logprob: Double?
-    let compression_ratio: Double?
 }

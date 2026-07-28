@@ -5,30 +5,16 @@ struct DictionaryEntry: Codable, Identifiable, Hashable {
     var term: String
     var category: String
     var addedAt: Date
-    var aliases: [String]
-    var useCount: Int
-    var lastUsedAt: Date?
 
-    init(
-        id: UUID = UUID(),
-        term: String,
-        category: String = "general",
-        addedAt: Date = Date(),
-        aliases: [String] = [],
-        useCount: Int = 0,
-        lastUsedAt: Date? = nil
-    ) {
+    init(id: UUID = UUID(), term: String, category: String = "general") {
         self.id = id
         self.term = term
         self.category = category
-        self.addedAt = addedAt
-        self.aliases = aliases
-        self.useCount = useCount
-        self.lastUsedAt = lastUsedAt
+        self.addedAt = Date()
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, term, category, addedAt, aliases, useCount, lastUsedAt
+        case id, term, category, addedAt
     }
 
     // Custom decode so older dictionary.json files still load cleanly — missing
@@ -40,13 +26,10 @@ struct DictionaryEntry: Codable, Identifiable, Hashable {
         term = try c.decode(String.self, forKey: .term)
         category = try c.decodeIfPresent(String.self, forKey: .category) ?? "general"
         addedAt = try c.decodeIfPresent(Date.self, forKey: .addedAt) ?? Date()
-        aliases = try c.decodeIfPresent([String].self, forKey: .aliases) ?? []
-        useCount = try c.decodeIfPresent(Int.self, forKey: .useCount) ?? 0
-        lastUsedAt = try c.decodeIfPresent(Date.self, forKey: .lastUsedAt)
     }
 }
 
 struct DictionaryFile: Codable {
-    var version: Int = 3
+    var version: Int = 2
     var terms: [DictionaryEntry]
 }
