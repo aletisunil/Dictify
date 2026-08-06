@@ -48,10 +48,14 @@ final class StatsStore: ObservableObject {
     @Published private(set) var lastSaveError: Error?
 
     private weak var historyStore: HistoryStore?
-    private let fileURL = Constants.Storage.statsFileURL
+    private let fileURL: URL
 
-    init(historyStore: HistoryStore? = nil) {
+    init(
+        historyStore: HistoryStore? = nil,
+        fileURL: URL = Constants.Storage.statsFileURL
+    ) {
         self.historyStore = historyStore
+        self.fileURL = fileURL
         load()
     }
 
@@ -60,6 +64,11 @@ final class StatsStore: ObservableObject {
     var totalSpeakingSeconds: Double { lifetime.totalSpeakingSeconds }
 
     var totalDictations: Int { lifetime.totalDictations }
+
+    /// Complete persisted per-day activity, independent of the capped text
+    /// history. The contribution graph uses this so older days do not disappear
+    /// after the 500-record history limit is reached.
+    var dailyDictationCounts: [String: Int] { lifetime.dayCounts }
 
     var sessionWPM: Double? {
         wpm(words: sessionWords, speakingSeconds: sessionSpeakingSeconds)
@@ -157,7 +166,7 @@ final class StatsStore: ObservableObject {
         return formatter
     }()
 
-    private static func dayKey(for date: Date) -> String {
+    static func dayKey(for date: Date) -> String {
         dayKeyFormatter.string(from: date)
     }
 

@@ -576,28 +576,23 @@ struct PermissionOnboardingView: View {
         }
 
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let km = keychainManager else { return }
-
-        // Persist the key before testing so GroqClient can read it back.
-        _ = km.saveAPIKey(trimmed)
+        guard !trimmed.isEmpty else { return }
         apiKey = trimmed
 
         isTestingKey = true
         Task {
-            let result = await Self.testKeyAgainstGroq(keychainManager: km)
+            let result = await Self.testKeyAgainstGroq(apiKey: trimmed)
             await MainActor.run {
                 self.testKeyResult = result
                 self.isTestingKey = false
-                if case .success = result {
-                    self.didSaveKey = true
-                    self.onAPIKeySaved()
-                }
             }
         }
     }
 
-    private static func testKeyAgainstGroq(keychainManager: KeychainManager) async -> OnboardingTestResult {
-        let client = GroqClient(keychainManager: keychainManager)
+    private static func testKeyAgainstGroq(apiKey: String) async -> OnboardingTestResult {
+        // Connection testing is read-only with respect to Keychain. The key is
+        // persisted only when the user chooses Save & Continue.
+        let client = GroqClient(apiKey: apiKey)
         guard let url = URL(string: Constants.API.modelsEndpoint) else {
             return .failure("Internal error")
         }

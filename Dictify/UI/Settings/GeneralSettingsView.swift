@@ -210,6 +210,10 @@ struct GeneralSettingsView: View {
             }
             .creamFormRow()
 
+            if let updater = AppDelegate.shared?.updaterManager {
+                UpdatesSettingsSection(updater: updater, appVersion: appVersion)
+            }
+
             Section("Permissions") {
                 HStack {
                     Label("Microphone", systemImage: "mic.fill")
@@ -377,5 +381,62 @@ struct GeneralSettingsView: View {
     private func syncLaunchAtLoginState() {
         guard #available(macOS 13.0, *) else { return }
         launchAtLogin = SMAppService.mainApp.status == .enabled
+    }
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+    }
+}
+
+// Hallmark · component: Updates settings · genre: modern-minimal · theme: Dictify native
+// Pre-emit critique: P5 H5 E5 S5 R5 V4 · native control states · contrast inherited
+private struct UpdatesSettingsSection: View {
+    @ObservedObject var updater: UpdaterManager
+    let appVersion: String
+
+    var body: some View {
+        Section("Updates") {
+            VStack(spacing: 0) {
+                HStack(alignment: .center, spacing: DS.Space.lg) {
+                    VStack(alignment: .leading, spacing: DS.Space.xs) {
+                        Text("Automatically check for updates")
+                            .font(.dsBodyMedium)
+                        Text("Checks in the background about once a day.")
+                            .font(.dsCaption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: DS.Space.lg)
+                    Toggle("Automatically check for updates", isOn: $updater.automaticallyChecksForUpdates)
+                        .labelsHidden()
+                }
+                .padding(.vertical, DS.Space.sm)
+
+                Divider()
+                    .background(Color.appHairline)
+
+                HStack(alignment: .center, spacing: DS.Space.lg) {
+                    VStack(alignment: .leading, spacing: DS.Space.xs) {
+                        Text("Check for updates")
+                            .font(.dsBodyMedium)
+                        Text("Version \(appVersion) installed.")
+                            .font(.dsCaption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: DS.Space.lg)
+                    Button("Check Now…") {
+                        updater.checkForUpdates()
+                    }
+                    .controlSize(.small)
+                    .disabled(!updater.canCheckForUpdates)
+                    .help(
+                        updater.canCheckForUpdates
+                            ? "Check for a newer version of Dictify"
+                            : "An update check is already in progress"
+                    )
+                }
+                .padding(.vertical, DS.Space.sm)
+            }
+        }
+        .creamFormRow()
     }
 }

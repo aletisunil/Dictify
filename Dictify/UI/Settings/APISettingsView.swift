@@ -153,23 +153,19 @@ struct APISettingsView: View {
             return
         }
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedKey.isEmpty {
-            let didSave = km.saveAPIKey(apiKey)
-            appState.refreshAPIKeyStatus()
-            if didSave {
-                apiKey = trimmedKey
-                didSaveAPIKey = true
-            } else if !appState.hasAPIKeyConfigured {
-                testResult = .failure("Could not save key")
-                isTesting = false
-                return
-            }
+        guard let candidateKey = trimmedKey.isEmpty ? km.getAPIKey() : trimmedKey,
+              !candidateKey.isEmpty else {
+            testResult = .failure("No API key to test")
+            isTesting = false
+            return
         }
 
         let modelForTest = currentGPTOssModel
         Task {
             do {
-                let client = GroqClient(keychainManager: km)
+                // Test the field value in memory. Saving remains an explicit,
+                // separate action and a failed test cannot overwrite Keychain.
+                let client = GroqClient(apiKey: candidateKey)
                 guard let url = URL(string: Constants.API.chatCompletionEndpoint) else {
                     throw URLError(.badURL)
                 }

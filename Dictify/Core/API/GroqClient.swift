@@ -2,23 +2,36 @@ import Foundation
 
 final class GroqClient: @unchecked Sendable {
     private let session: URLSession
-    private let keychainManager: KeychainManager
+    private let apiKeyProvider: @Sendable () -> String?
     private let maxRetries = 2
     private let backoffIntervals: [TimeInterval] = [1.0, 3.0]
 
     init(keychainManager: KeychainManager) {
+        self.session = Self.makeSession()
+        self.apiKeyProvider = { keychainManager.getAPIKey() }
+    }
+
+    /// Uses an in-memory credential without reading or writing Keychain. This is
+    /// intentionally used by "Test Connection" so testing an edited/invalid key
+    /// can never replace the user's last known-good saved credential.
+    init(apiKey: String) {
+        let normalizedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.session = Self.makeSession()
+        self.apiKeyProvider = { normalizedKey.isEmpty ? nil : normalizedKey }
+    }
+
+    private static func makeSession() -> URLSession {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 90
         config.waitsForConnectivity = true
-        self.session = URLSession(configuration: config)
-        self.keychainManager = keychainManager
+        return URLSession(configuration: config)
     }
 
     /// `URLSession.data(for:)` honours `Task.isCancelled`, so wrapping callers
     /// in a `Task` + calling `task.cancel()` cleanly aborts the request.
     func performRequest(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        guard let apiKey = keychainManager.getAPIKey(), !apiKey.isEmpty else {
+        guard let apiKey = apiKeyProvider(), !apiKey.isEmpty else {
             throw APIError.noAPIKey
         }
 

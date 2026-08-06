@@ -235,8 +235,8 @@ struct HomeView: View {
 
                 statsRow
 
-                if let historyStore = appState.historyStore {
-                    ContributionGraphView(records: historyStore.records)
+                if let statsStore = appState.statsStore {
+                    ContributionGraphView(dayCounts: statsStore.dailyDictationCounts)
                 }
 
                 recentSection
@@ -1175,10 +1175,10 @@ private struct IconButton: View {
 // MARK: - Contribution Graph
 
 /// GitHub-style activity heatmap: one cell per day for the last year, tinted by
-/// how many transcriptions happened that day. Derived entirely from history, so
-/// it needs no separate tracking.
+/// how many transcriptions happened that day. Uses lifetime daily aggregates so
+/// the graph remains complete after detailed text history reaches its size cap.
 struct ContributionGraphView: View {
-    let records: [TranscriptionRecord]
+    let dayCounts: [String: Int]
 
     private let weeks = 53
     private let scrollEndID = "contribution-graph-end"
@@ -1192,17 +1192,6 @@ struct ContributionGraphView: View {
         cal.locale = .current // otherwise month symbols fall back to "M01"…"M12"
         cal.firstWeekday = 1 // Sunday-led columns, like GitHub
         return cal
-    }
-
-    /// Transcriptions per calendar day, keyed by start-of-day.
-    private var countsByDay: [Date: Int] {
-        let cal = calendar
-        var dict: [Date: Int] = [:]
-        for record in records {
-            let day = cal.startOfDay(for: record.date)
-            dict[day, default: 0] += 1
-        }
-        return dict
     }
 
     /// Sunday of the first (leftmost) column.
@@ -1219,11 +1208,16 @@ struct ContributionGraphView: View {
     }
 
     private var totalInWindow: Int {
-        let cal = calendar
-        let start = startSunday
-        return records.reduce(0) { sum, record in
-            cal.startOfDay(for: record.date) >= start ? sum + 1 : sum
+        let today = calendar.startOfDay(for: Date())
+        var total = 0
+        for week in 0..<weeks {
+            for row in 0..<7 {
+                let day = date(week: week, row: row)
+                guard day <= today else { continue }
+                total += dayCounts[StatsStore.dayKey(for: day)] ?? 0
+            }
         }
+        return total
     }
 
     var body: some View {
@@ -1305,22 +1299,22 @@ struct ContributionGraphView: View {
 
     private var grid: some View {
         let today = calendar.startOfDay(for: Date())
-        let counts = countsByDay
         return HStack(spacing: spacing) {
             ForEach(0..<weeks, id: \.self) { week in
                 VStack(spacing: spacing) {
                     ForEach(0..<7, id: \.self) { row in
                         let day = date(week: week, row: row)
+                        let count = dayCounts[StatsStore.dayKey(for: day)] ?? 0
                         if day > today {
                             Color.clear.frame(width: cell, height: cell)
                         } else {
                             RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                .fill(tint(counts[day] ?? 0))
+                                .fill(tint(count))
                                 .frame(width: cell, height: cell)
-                                .help(helpText(day: day, count: counts[day] ?? 0))
+                                .help(helpText(day: day, count: count))
                                 // Color-only cells: expose the same date+count
                                 // text the tooltip shows to VoiceOver.
-                                .accessibilityLabel(helpText(day: day, count: counts[day] ?? 0))
+                                .accessibilityLabel(helpText(day: day, count: count))
                         }
                     }
                 }
