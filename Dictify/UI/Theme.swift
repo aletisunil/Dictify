@@ -13,11 +13,13 @@ extension NSColor {
     /// Semantic AppKit background colors changed between SDK generations,
     /// making Release builds grey while newer Debug builds appeared black.
     private static let appDarkSurface = NSColor(
-        calibratedWhite: 30.0 / 255.0,
+        srgbRed: 30.0 / 255.0,
+        green: 30.0 / 255.0,
+        blue: 30.0 / 255.0,
         alpha: 1.0
-    ) // #1E1E1E
+    ) // #1E1E1E — matches the darker Debug app screenshot
 
-    /// App window background — cream in light mode, fixed black in dark.
+    /// App window background — cream in light mode, fixed dark grey in dark.
     static let appWindowBackground = NSColor(name: "appWindowBackground") { appearance in
         appearance.isDark
             ? .appDarkSurface
@@ -25,7 +27,7 @@ extension NSColor {
     }
 
     /// Card / control background — a lighter cream that lifts off the window in
-    /// light mode; fixed black in dark. Kept clearly warm (not the
+    /// light mode; fixed dark grey in dark. Kept clearly warm (not the
     /// former near-white #FFFBF1, which read as pure white across the large
     /// Home cards): a mid step between the window cream and white, so cards
     /// lift via the hairline + shadow while staying inside the cream palette.
@@ -36,7 +38,7 @@ extension NSColor {
     }
 
     /// Sidebar background — a darker cream step below the window in light mode;
-    /// fixed black in dark.
+    /// fixed dark grey in dark.
     static let appSidebarBackground = NSColor(name: "appSidebarBackground") { appearance in
         appearance.isDark
             ? .appDarkSurface
