@@ -4,33 +4,42 @@ import AppKit
 // MARK: - Theme Colors
 //
 // Light mode swaps macOS's pure-white window/control backgrounds for a warmer
-// cream palette; dark mode keeps the system colors so it stays true black-grey.
-// Both are dynamic NSColors, so they react to live appearance changes.
+// cream palette. Dark mode uses one fixed surface color so the UI renders the
+// same whether it is built with the macOS 15 or macOS 26 SDK.
+// The named colors remain dynamic so they react to live appearance changes.
 
 extension NSColor {
-    /// App window background — cream in light mode, system window grey in dark.
+    /// A stable dark surface shared by the window, cards, and sidebar.
+    /// Semantic AppKit background colors changed between SDK generations,
+    /// making Release builds grey while newer Debug builds appeared black.
+    private static let appDarkSurface = NSColor(
+        calibratedWhite: 30.0 / 255.0,
+        alpha: 1.0
+    ) // #1E1E1E
+
+    /// App window background — cream in light mode, fixed black in dark.
     static let appWindowBackground = NSColor(name: "appWindowBackground") { appearance in
         appearance.isDark
-            ? .windowBackgroundColor
+            ? .appDarkSurface
             : NSColor(calibratedRed: 0.961, green: 0.925, blue: 0.843, alpha: 1.0) // #F5ECD7
     }
 
     /// Card / control background — a lighter cream that lifts off the window in
-    /// light mode; system control colour in dark. Kept clearly warm (not the
+    /// light mode; fixed black in dark. Kept clearly warm (not the
     /// former near-white #FFFBF1, which read as pure white across the large
     /// Home cards): a mid step between the window cream and white, so cards
     /// lift via the hairline + shadow while staying inside the cream palette.
     static let appCardBackground = NSColor(name: "appCardBackground") { appearance in
         appearance.isDark
-            ? .controlBackgroundColor
+            ? .appDarkSurface
             : NSColor(calibratedRed: 0.984, green: 0.957, blue: 0.898, alpha: 1.0) // #FBF4E5
     }
 
     /// Sidebar background — a darker cream step below the window in light mode;
-    /// system control colour in dark.
+    /// fixed black in dark.
     static let appSidebarBackground = NSColor(name: "appSidebarBackground") { appearance in
         appearance.isDark
-            ? .windowBackgroundColor
+            ? .appDarkSurface
             : NSColor(calibratedRed: 0.933, green: 0.898, blue: 0.816, alpha: 1.0) // #EEE5D0
     }
 
