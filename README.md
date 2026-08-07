@@ -91,7 +91,7 @@ Grab the latest `Dictify.dmg` from the [Releases page](../../releases), drag the
 
 **Option 3 - Build from source**
 
-Open `Dictify.xcodeproj` in Xcode and press ⌘R for the fastest feedback loop.
+Open `Dictify.xcodeproj` in Xcode 26 and press ⌘R for the fastest feedback loop.
 
 Or from the command line:
 
@@ -99,7 +99,7 @@ Or from the command line:
 xcodebuild -project Dictify.xcodeproj -scheme Dictify -configuration Debug build
 ```
 
-No code signing is needed for local development. The release pipeline (signing, notarization, DMG packaging) is automated in [`.github/workflows/release.yml`](.github/workflows/release.yml) and driven by the scripts in [`scripts/`](scripts/).
+No code signing is needed for local development. Releases are deliberately linked with the macOS 26 SDK for the current system window and navigation styling, while the deployment target remains macOS 14. The release pipeline (signing, notarization, DMG packaging) is automated in [`.github/workflows/release.yml`](.github/workflows/release.yml) and driven by the scripts in [`scripts/`](scripts/).
 
 ## Configuration
 

@@ -52,6 +52,14 @@ trap cleanup EXIT
 
 cd "$ROOT_DIR"
 
+SDK_VERSION="$(xcrun --sdk macosx --show-sdk-version)"
+if [[ "$SDK_VERSION" != 26.* ]]; then
+  echo "Dictify releases must be linked with the macOS 26 SDK; found $SDK_VERSION." >&2
+  echo "Select Xcode 26 before running this script." >&2
+  exit 1
+fi
+echo "Building release with macOS SDK $SDK_VERSION"
+
 if [[ ! -f "$BACKGROUND_PATH" ]]; then
   echo "Missing DMG background: $BACKGROUND_PATH" >&2
   exit 1
