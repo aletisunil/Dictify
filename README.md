@@ -23,6 +23,12 @@ With **Match tone to the app** on, Dictify tells the model which app you're dict
 
 ![General settings](screenshots/general1.png)
 
+### Spoken emoji
+
+Dictate any macOS 14-compatible base emoji by its English name: “fire emoji” → 🔥, “sad emoji” → 😢, or “red heart emoji” → ❤️. Country names and region codes work for flags, including “United States flag emoji” and “US flag emoji” → 🇺🇸.
+
+You can omit the final word “emoji” when using an explicit command, such as “insert pizza” → 🍕 or “add laughing face” → 😂. Bare names remain ordinary text, so “I ate pizza” is never rewritten unexpectedly. Skin-tone, gender, and detailed family/couple variants are not included in this first version.
+
 ### One home for everything
 
 Home, history, dictionary, snippets, and settings all live in a single main window with a sidebar. The Home tab shows live stats - session and total words with words-per-minute, current streak, active days, total speaking time, peak hour, busiest day, an estimate of time saved versus typing, and a GitHub-style contribution graph of your daily activity. Close the window whenever you like; the global hotkey keeps working in the background, and a menu bar icon is always there for a quick reopen or quit.

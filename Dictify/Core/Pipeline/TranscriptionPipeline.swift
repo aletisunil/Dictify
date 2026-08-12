@@ -351,7 +351,12 @@ actor TranscriptionPipeline {
             return
         }
 
-        var finalText = rawTranscript
+        // Spoken emoji commands are resolved locally before refinement. This
+        // keeps them reliable when refinement is disabled/skipped/fails and
+        // prevents the model from having to infer which glyph was intended.
+        // `rawTranscript` remains untouched for History's original-text view.
+        let emojiExpandedTranscript = SpokenEmojiReplacer.replace(in: rawTranscript)
+        var finalText = emojiExpandedTranscript
         var refinementSucceeded = false
 
         let refinementEnabled = await MainActor.run { settings.refinementEnabled }
@@ -365,9 +370,11 @@ actor TranscriptionPipeline {
         // local matcher already catches split/reformatted cues ("paste clip"),
         // so only a badly misheard cue inside a ≤6-word utterance loses model
         // expansion — far cheaper than inserting hallucinated text.
-        var skipRefinement = Self.shouldSkipRefinement(rawTranscript: rawTranscript)
+        var skipRefinement = Self.shouldSkipRefinement(rawTranscript: emojiExpandedTranscript)
         if skipRefinement && hasSnippets {
-            let cuePresent = await MainActor.run { snippetStore.containsCue(in: rawTranscript) }
+            // Emoji expansion intentionally precedes snippets, so a custom cue
+            // named like a built-in emoji command cannot override the glyph.
+            let cuePresent = await MainActor.run { snippetStore.containsCue(in: emojiExpandedTranscript) }
             skipRefinement = !cuePresent
         }
         if refinementEnabled && !skipRefinement {
@@ -388,7 +395,7 @@ actor TranscriptionPipeline {
                 let appAware = await MainActor.run { settings.appAwareToneEnabled }
                 let targetApp = appAware ? (frontmostAppName ?? "") : ""
                 finalText = try await gptOssService.refine(
-                    rawTranscript: rawTranscript,
+                    rawTranscript: emojiExpandedTranscript,
                     dictionaryContext: dictContext,
                     snippetContext: snippetCtx,
                     targetAppName: targetApp,
@@ -406,8 +413,8 @@ actor TranscriptionPipeline {
                 }
                 return
             } catch {
-                Log.pipeline.notice("Refinement failed, using raw transcript: \(error.localizedDescription, privacy: .public)")
-                finalText = rawTranscript
+                Log.pipeline.notice("Refinement failed, using locally transformed transcript: \(error.localizedDescription, privacy: .public)")
+                finalText = emojiExpandedTranscript
             }
             Log.pipelineSignpost.endInterval("refine", refineState)
         }
