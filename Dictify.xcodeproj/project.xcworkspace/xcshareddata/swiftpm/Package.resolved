@@ -2,15 +2,6 @@
   "originHash" : "5027176d20cdf8521bcb746bb335854d108c63c4f099a9813e096b45572301eb",
   "pins" : [
     {
-      "identity" : "mediaremote-adapter",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ejbills/mediaremote-adapter",
-      "state" : {
-        "branch" : "master",
-        "revision" : "cf30c4f1af29b5829d859f088f8dbdf12611a046"
-      }
-    },
-    {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",

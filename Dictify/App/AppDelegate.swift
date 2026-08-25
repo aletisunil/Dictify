@@ -69,8 +69,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appState.statsStore = statsStore
         appState.keychainManager = keychainManager
 
-        let mediaController = MediaPlaybackController()
+        // Started here so the media helper is already reporting playback state
+        // by the time the first hotkey lands, instead of the dictation paying
+        // for a cold now-playing query.
+        let mediaController = MediaPlaybackController(settings: appState.settings)
         self.mediaController = mediaController
+        mediaController.start()
 
         pipeline = TranscriptionPipeline(
             appState: appState,
@@ -293,6 +297,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Quitting mid-dictation must not leave system media paused forever.
         mediaController?.resumeOnTerminate()
+        mediaController?.invalidate()
         keyMonitor?.invalidate()
         permissionManager?.invalidate()
         indicatorWindow?.invalidate()

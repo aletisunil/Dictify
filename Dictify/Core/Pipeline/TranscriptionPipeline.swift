@@ -58,11 +58,7 @@ actor TranscriptionPipeline {
     private struct StartContext {
         let frontmostAppName: String?
         let preferredDeviceUID: String
-        let pauseMediaDuringDictation: Bool
     }
-    /// True when we paused system media for the current dictation, so we only
-    /// resume what we actually paused.
-    private var didPauseMedia = false
     /// Name of the app focused when this dictation started — the app the text
     /// will be inserted into. Snapshotted at start because focus can move by
     /// insertion time. Used to tune refinement tone when app-aware tone is on.
@@ -147,8 +143,7 @@ actor TranscriptionPipeline {
                 }
                 return StartContext(
                     frontmostAppName: appName,
-                    preferredDeviceUID: settings.selectedInputDeviceUID,
-                    pauseMediaDuringDictation: settings.pauseMediaDuringDictation
+                    preferredDeviceUID: settings.selectedInputDeviceUID
                 )
             default:
                 return nil
@@ -175,6 +170,12 @@ actor TranscriptionPipeline {
 
         frontmostAppName = context.frontmostAppName
 
+        // Pause system media before capture opens the mic, so playback never
+        // bleeds into the front of the recording. This is a pipe write to the
+        // already-running media helper, so it costs nothing on this path and
+        // no longer has to be deferred until after the recording cue.
+        await mediaController.pauseForDictation()
+
         do {
             // Async: a Bluetooth route settle can suspend here, so stop/cancel
             // may interleave — the engine aborts via its own captureGeneration,
@@ -191,6 +192,7 @@ actor TranscriptionPipeline {
             )
             guard generation == startGeneration else {
                 audioEngine.stopCapture()
+                await resumeMediaIfNeeded()
                 return
             }
             scheduleMaxDurationStop()
@@ -202,23 +204,6 @@ actor TranscriptionPipeline {
                 appState.playSound("Tink")
             }
             await startElapsedTimer()
-
-            // Pause system media after the recording cue so the helper subprocess
-            // doesn't delay the "Tink". We only resume what we pause (`didPauseMedia`).
-            if context.pauseMediaDuringDictation {
-                let paused = await mediaController.pauseIfPlaying()
-                if paused {
-                    // The pause is async: a near-instant stop can run (actor
-                    // reentrancy) while we await above, find `didPauseMedia`
-                    // still false, and skip its resume. If recording already
-                    // ended, resume immediately so media isn't left muted.
-                    if audioEngine.isRecording {
-                        didPauseMedia = true
-                    } else {
-                        await mediaController.resumeIfWePaused(true)
-                    }
-                }
-            }
         } catch {
             audioEngine.stopCapture()
             cancelMaxDurationStop()
@@ -281,11 +266,10 @@ actor TranscriptionPipeline {
         }
     }
 
-    /// Resume system media iff we paused it for this dictation. Idempotent.
+    /// Resume system media iff we paused it for this dictation. Idempotent, and
+    /// a no-op when this dictation paused nothing.
     private func resumeMediaIfNeeded() async {
-        guard didPauseMedia else { return }
-        didPauseMedia = false
-        await mediaController.resumeIfWePaused(true)
+        await mediaController.resumeAfterDictation()
     }
 
     private func processCapturedAudio(pcmData: Data, duration: TimeInterval) async {
