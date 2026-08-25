@@ -56,8 +56,6 @@
 		A10000070 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000070 /* Theme.swift */; };
 		A10000090 /* MediaPlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000090 /* MediaPlaybackController.swift */; };
 		A10000091 /* UpdaterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000091 /* UpdaterManager.swift */; };
-		A10000092 /* SpokenEmojiReplacer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000092 /* SpokenEmojiReplacer.swift */; };
-		A10000093 /* emoji-catalog.json in Resources */ = {isa = PBXBuildFile; fileRef = B10000093 /* emoji-catalog.json */; };
 		E0EA9DCA2FF218C50041D808 /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DC92FF218C50041D808 /* MediaRemoteAdapter */; };
 		E0EA9DCB2FF218C50041D808 /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DC92FF218C50041D808 /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		E0EA9DD12FF218C50041D808 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = E0EA9DD02FF218C50041D808 /* Sparkle */; };
@@ -130,8 +128,6 @@
 		B10000070 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		B10000090 /* MediaPlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPlaybackController.swift; sourceTree = "<group>"; };
 		B10000091 /* UpdaterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterManager.swift; sourceTree = "<group>"; };
-		B10000092 /* SpokenEmojiReplacer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpokenEmojiReplacer.swift; sourceTree = "<group>"; };
-		B10000093 /* emoji-catalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "emoji-catalog.json"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -335,7 +331,6 @@
 				B10000038 /* Assets.xcassets */,
 				B10000039 /* Info.plist */,
 				B10000046 /* PrivacyInfo.xcprivacy */,
-				B10000093 /* emoji-catalog.json */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -344,7 +339,6 @@
 			isa = PBXGroup;
 			children = (
 				B10000014 /* TranscriptionPipeline.swift */,
-				B10000092 /* SpokenEmojiReplacer.swift */,
 			);
 			path = Pipeline;
 			sourceTree = "<group>";
@@ -440,7 +434,6 @@
 			files = (
 				A10000038 /* Assets.xcassets in Resources */,
 				A10000044 /* PrivacyInfo.xcprivacy in Resources */,
-				A10000093 /* emoji-catalog.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -467,7 +460,6 @@
 				A10000012 /* ClipboardPaster.swift in Sources */,
 				A10000013 /* PermissionManager.swift in Sources */,
 				A10000014 /* TranscriptionPipeline.swift in Sources */,
-				A10000092 /* SpokenEmojiReplacer.swift in Sources */,
 				A10000015 /* DictionaryEntry.swift in Sources */,
 				A10000016 /* Snippet.swift in Sources */,
 				A10000017 /* TranscriptionRecord.swift in Sources */,
@@ -635,7 +627,7 @@
 				CODE_SIGN_ENTITLEMENTS = Dictify/Dictify.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -645,7 +637,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.26;
+				MARKETING_VERSION = 1.27;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app.debug;
 				PRODUCT_NAME = "Dictify Debug";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -662,7 +654,7 @@
 				CODE_SIGN_ENTITLEMENTS = Dictify/Dictify.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -672,7 +664,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.26;
+				MARKETING_VERSION = 1.27;
 				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.app;
 				PRODUCT_NAME = Dictify;
 				SWIFT_EMIT_LOC_STRINGS = YES;

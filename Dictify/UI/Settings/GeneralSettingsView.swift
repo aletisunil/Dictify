@@ -160,16 +160,6 @@ struct GeneralSettingsView: View {
                 Text("Adjusts formality to fit the app you're dictating into — polished for email, casual for chat, literal for code. Web apps in a browser stay neutral.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-
-                Divider()
-
-                Label("Spoken Emoji", systemImage: "face.smiling")
-                Text("Say an emoji name followed by “emoji,” or use “insert”/“add”: “fire emoji” → 🔥, “insert sad face” → 😢, “US flag emoji” → 🇺🇸.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("Ordinary words stay literal, so saying “pizza” alone does not insert 🍕.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
             .creamFormRow()
 
