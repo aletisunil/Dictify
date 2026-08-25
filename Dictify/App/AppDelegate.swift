@@ -25,10 +25,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var mediaController: MediaPlaybackController?
     private(set) var updaterManager: UpdaterManager?
     private var cancellables = Set<AnyCancellable>()
+    /// Set when the app was started by the system (login item, or a relaunch
+    /// after restart) rather than by the user. Used to suppress the reopen
+    /// event macOS can deliver right after such a launch.
+    private var quietLaunchAt: Date?
 
     override init() {
         super.init()
         AppDelegate.shared = self
+    }
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // The policy has to be applied before AppKit finishes launching. The
+        // bundle has no LSUIElement, so the app starts as `.regular`: by
+        // didFinishLaunching it has already shown a Dock icon and taken focus
+        // from whatever was frontmost, which is what surfaced the app on a
+        // restart even with "Show App in Dock" off.
+        applyDockVisibility(showInDock: appState.settings.showInDock, activate: false)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -96,10 +109,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
 
-        // A login-item / reopen launch is not a "default" launch. When the app
+        // A login-item / restore launch is not a "default" launch. When the app
         // auto-starts at login we stay quietly in the menu bar instead of
         // throwing the main window in the user's face on every reboot.
-        let isLoginLaunch = !(notification.userInfo?["NSApplicationLaunchIsDefaultLaunchKey"] as? Bool ?? true)
+        //
+        // Only an explicit `true` counts as a user launch. The key is missing
+        // on some system-initiated launches - notably the relaunch macOS does
+        // after a restart when the app was running at shutdown - and treating a
+        // missing key as a user launch is what made the window appear anyway.
+        let defaultLaunchFlag = notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool
+        let isLoginLaunch = defaultLaunchFlag != true
+        if isLoginLaunch { quietLaunchAt = Date() }
+        Log.ui.notice("""
+            Launch flow - defaultLaunchKey=\(defaultLaunchFlag.map(String.init(describing:)) ?? "absent", privacy: .public) \
+            quietLaunch=\(isLoginLaunch, privacy: .public) \
+            showInDock=\(self.appState.settings.showInDock, privacy: .public) \
+            launchAtLogin=\(self.appState.settings.launchAtLogin, privacy: .public)
+            """)
         decideLaunchFlow(isLoginLaunch: isLoginLaunch)
     }
 
@@ -195,12 +221,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.appearance = (AppearancePreference(rawValue: preference) ?? .system).nsAppearance
     }
 
+    /// - Parameter activate: whether regaining the Dock icon should also pull
+    ///   the app forward. True when the user flips the setting (the app is
+    ///   already frontmost), false during launch, where activating would steal
+    ///   focus from whatever the user is actually working in.
     @MainActor
-    func applyDockVisibility(showInDock: Bool) {
+    func applyDockVisibility(showInDock: Bool, activate: Bool = true) {
         let desired: NSApplication.ActivationPolicy = showInDock ? .regular : .accessory
         guard NSApp.activationPolicy() != desired else { return }
         NSApp.setActivationPolicy(desired)
-        if showInDock {
+        if showInDock && activate {
             NSApp.activate()
         }
     }
@@ -239,6 +269,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // macOS can deliver a reopen right after relaunching the app itself at
+        // login or after a restart. Honouring it would undo the quiet launch and
+        // put the main window on screen, so ignore reopens that land in the
+        // first moments of such a launch. A real Dock/Spotlight reopen by the
+        // user comes later and still opens the window.
+        if let quietLaunchAt, Date().timeIntervalSince(quietLaunchAt) < 3 {
+            Log.ui.notice("Ignoring reopen \(Date().timeIntervalSince(quietLaunchAt), privacy: .public)s into a system-initiated launch")
+            return true
+        }
         if !flag {
             Task { @MainActor in
                 if !hasOnboardedDurably() {
