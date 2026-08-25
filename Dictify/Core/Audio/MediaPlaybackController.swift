@@ -47,8 +47,10 @@ final class MediaPlaybackController {
     private var pausedByUs = false
 
     /// Consecutive listener deaths, used to stop restarting a helper that
-    /// cannot stay up. Reset by any successful report.
+    /// cannot stay up. Reset by any successful report, and by switching the
+    /// feature off and on again.
     private var listenerRestarts = 0
+    private var listenerGaveUp = false
     private static let maxListenerRestarts = 5
 
     private var defaultsObserver: NSObjectProtocol?
@@ -91,8 +93,10 @@ final class MediaPlaybackController {
         let token = dictationToken
 
         guard settings.pauseMediaDuringDictation else { return }
-        // The setting may have been switched on since the last defaults change
-        // we saw; bring the helper up before relying on its state.
+        // Don't trust a report from a helper that is no longer there, and bring
+        // the listener up if the setting was switched on since the last defaults
+        // change we saw.
+        reconcileListener()
         syncListener()
 
         if hasLiveState {
@@ -116,6 +120,11 @@ final class MediaPlaybackController {
         guard pausedByUs else { return }
         pausedByUs = false
         controller.play()
+        // The listener needs a beat to report the resumed playback. Until it
+        // does, assume media is back: a second dictation started inside that
+        // window must not read the stale "nothing is playing" and skip its
+        // pause. Any real report supersedes this.
+        isPlaying = true
         Log.media.notice("Resumed system media after dictation")
     }
 
@@ -185,7 +194,9 @@ final class MediaPlaybackController {
     }
 
     private func startListening() {
-        guard !isListening else { return }
+        // `listenerGaveUp` outranks the setting: without it the `syncListener()`
+        // on the next dictation would restart the helper the cap just gave up on.
+        guard !isListening, !listenerGaveUp else { return }
         isListening = true
 
         controller.onTrackInfoReceived = { [weak self] trackInfo in
@@ -199,23 +210,47 @@ final class MediaPlaybackController {
 
         controller.onListenerTerminated = { [weak self] in
             guard let self, self.isListening else { return }
-            // The helper died. Its last report is no longer trustworthy, so fall
-            // back to one-shot probes until a restarted listener reports again.
-            self.isListening = false
-            self.hasLiveState = false
-            self.listenerRestarts += 1
-            guard self.listenerRestarts <= Self.maxListenerRestarts else {
-                Log.media.error("Media helper died repeatedly; falling back to per-dictation probes")
-                return
-            }
-            Log.media.notice("Media helper terminated; restarting")
-            self.startListening()
+            self.handleListenerDeath(reason: "terminated")
         }
 
         controller.startListening()
     }
 
+    /// Catches a listener that went away without saying so. `onListenerTerminated`
+    /// is suppressed for a helper that died having only ever reported "nothing
+    /// playing", and never fires when a respawn fails to launch - so without this
+    /// check `hasLiveState` would keep answering from a process that no longer
+    /// exists, and every remaining dictation in the session would skip its pause.
+    /// That is the failure this controller exists to prevent, so it is worth one
+    /// cheap liveness check per dictation.
+    private func reconcileListener() {
+        guard isListening, !controller.isListenerActive else { return }
+        handleListenerDeath(reason: "gone without notice")
+    }
+
+    /// The helper is dead: its last report is no longer trustworthy, so drop the
+    /// cached state (dictations fall back to one-shot probes) and try to bring a
+    /// listener back, up to a cap so a helper that cannot stay up isn't respawned
+    /// forever.
+    private func handleListenerDeath(reason: String) {
+        isListening = false
+        hasLiveState = false
+        isPlaying = false
+        listenerRestarts += 1
+        guard listenerRestarts <= Self.maxListenerRestarts else {
+            listenerGaveUp = true
+            Log.media.error("Media helper died repeatedly; falling back to per-dictation probes")
+            return
+        }
+        Log.media.notice("Media helper \(reason, privacy: .public); restarting")
+        startListening()
+    }
+
     private func stopListening() {
+        // Turning the feature off and on again is the user's way of asking for a
+        // fresh start, so it clears a helper we had given up on.
+        listenerRestarts = 0
+        listenerGaveUp = false
         guard isListening else { return }
         isListening = false
         controller.onTrackInfoReceived = nil

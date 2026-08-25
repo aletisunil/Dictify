@@ -37,7 +37,37 @@ caller inside `applicationWillTerminate` gets no further turn of the run loop,
 so the queued write is simply lost and media the app paused stays paused after
 the app quits. `playBlocking()` performs the same write on the calling thread.
 
+### 3. A way to tell that the listener stopped reporting
+
+`Sources/MediaRemoteAdapter/MediaController.swift`, `isListenerActive`.
+
+`onListenerTerminated` is suppressed when the helper dies having only ever
+emitted `NIL` (`eventCount` is still 0), and it never fires at all when a
+respawn fails to launch. A caller that caches the last report then keeps
+answering from a process that no longer exists - for Dictify that means
+"nothing is playing" forever, and the pause silently stops happening, which is
+the bug this whole component exists to avoid. `isListenerActive` reports
+whether any further reports are coming. It stays `true` across the internal
+100-event restart (`isRestartPending`) so a caller cannot race that restart by
+starting a second helper.
+
+## Licensing
+
+Upstream `ejbills/mediaremote-adapter` ships no `LICENSE` file, but its sources
+carry BSD 3-Clause headers from the project it derives from,
+`ungive/mediaremote-adapter` (Copyright (c) 2025 Jonas van den Berg). BSD-3
+requires the licence text and disclaimer to travel with redistributed source,
+so `LICENSE` here is that project's, and the per-file copyright headers are
+left intact.
+
+Two files carry their own separate notices, also unmodified:
+`Sources/CIMediaRemote/include/MediaRemote.h` (Copyright (c) 2013-2014 Cykey /
+David Murray - reverse-engineered framework header) and
+`Sources/CIMediaRemote/include/MediaRemoteAdapter.h` (Copyright (c) 2024 Ethan
+Bills).
+
 ## Re-syncing with upstream
 
 Diff this tree against the upstream revision above, replay the patches listed
-here, then update the revision recorded in this file.
+here, then update the revision recorded in this file. `LICENSE` is not
+upstream's file - carry it across unchanged.

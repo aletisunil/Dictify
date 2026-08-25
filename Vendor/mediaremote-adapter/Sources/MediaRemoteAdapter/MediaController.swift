@@ -16,11 +16,24 @@ public class MediaController {
     private var dataBufferSearchStart = 0
     private var lastTrackInfo: TrackInfo?
     private var eventCount = 0
+    private var isRestartPending = false
     private let restartThreshold = 100
     private let commandQueue = DispatchQueue(label: "mediaremote-adapter.commands")
     private static let sigpipeIgnored: Void = {
         signal(SIGPIPE, SIG_IGN)
     }()
+
+    /// DICTIFY FORK: whether the listener will keep reporting.
+    ///
+    /// `onListenerTerminated` is suppressed for a helper that died having only
+    /// ever emitted `NIL` (`eventCount` is still 0), and it never fires at all
+    /// when a respawn fails to launch. A caller that caches the last report has
+    /// no way to know its state went stale. `false` here means no further
+    /// reports are coming; `true` covers the brief gap of the internal restart,
+    /// so callers don't race it by starting a second helper.
+    public var isListenerActive: Bool {
+        listeningProcess?.isRunning == true || isRestartPending
+    }
 
     public var onTrackInfoReceived: ((TrackInfo?) -> Void)?
     public var onListenerTerminated: (() -> Void)?
@@ -179,6 +192,7 @@ public class MediaController {
     }
 
     private func startListeningInternal() {
+        isRestartPending = false
         guard let scriptPath = perlScriptPath else {
             return
         }
@@ -271,6 +285,7 @@ public class MediaController {
     }
 
     public func stopListening() {
+        isRestartPending = false
         (listeningProcess?.standardOutput as? Pipe)?.fileHandleForReading.readabilityHandler = nil
         listeningProcess?.terminate()
         listeningProcess = nil
@@ -417,6 +432,7 @@ public class MediaController {
     }
 
     private func restartListeningProcess() {
+        isRestartPending = true
         (listeningProcess?.standardOutput as? Pipe)?.fileHandleForReading.readabilityHandler = nil
         listeningProcess?.terminate()
         listeningProcess = nil
