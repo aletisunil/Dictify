@@ -28,6 +28,12 @@ struct IndicatorView: View {
                     elapsedTimeView
                         .fixedSize()
                 }
+            } else if appState.pipelineState.isProcessing {
+                Spacer(minLength: 0)
+                ProcessingWaveformView()
+                    .frame(width: 108, height: 30)
+                    .accessibilityLabel(appState.pipelineState.statusLabel)
+                Spacer(minLength: 0)
             } else {
                 Spacer(minLength: 0)
                 statusIcon
@@ -49,9 +55,7 @@ struct IndicatorView: View {
         case .recording:
             EmptyView()
         case .transcribing, .refining, .inserting:
-            ProgressView()
-                .scaleEffect(0.5)
-                .frame(width: 12, height: 12)
+            EmptyView()
         case .error:
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(Color.appAlert)
