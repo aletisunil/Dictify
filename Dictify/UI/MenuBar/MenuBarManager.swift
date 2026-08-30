@@ -2,6 +2,20 @@ import AppKit
 
 @MainActor
 final class MenuBarManager {
+    /// macOS 26's Control Center can retain a status-item location under the
+    /// wrong application's `trackedApplications` record. Dictify originally
+    /// used AppKit's generated `Item-0` name, and the first workaround used
+    /// `DictifyMenuBar`; either name may already be cross-linked on an upgraded
+    /// Mac. Use a fresh, bundle-qualified identity on Tahoe and keep it stable
+    /// so Dictify and other apps receive independent visibility preferences.
+    private static var statusItemAutosaveName: NSStatusItem.AutosaveName {
+        if #available(macOS 26.0, *) {
+            let bundleIdentifier = Bundle.main.bundleIdentifier ?? Constants.bundleIdentifier
+            return "\(bundleIdentifier).statusItem.primary.v2"
+        }
+        return "DictifyMenuBar"
+    }
+
     private var statusItem: NSStatusItem?
     private let onOpen: @MainActor () -> Void
     private let checkForUpdatesItem: NSMenuItem
@@ -21,11 +35,8 @@ final class MenuBarManager {
 
     private func setup() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        // Unique autosave name. macOS 26 keys menu-bar-item visibility by this
-        // name alone (com.apple.controlcenter "NSStatusItem Visible <name>"),
-        // so the AppKit default "Item-0" collides with every other app that
-        // never set one - hiding another app's icon hid ours too.
-        item.autosaveName = "DictifyMenuBar"
+        let autosaveName = Self.statusItemAutosaveName
+        item.autosaveName = autosaveName
         if let button = item.button {
             button.image = makeIcon()
             button.image?.isTemplate = true
@@ -34,6 +45,7 @@ final class MenuBarManager {
         }
         item.menu = buildMenu()
         statusItem = item
+        Log.ui.notice("Menu bar item registered - autosaveName=\(autosaveName, privacy: .public) visible=\(item.isVisible, privacy: .public)")
     }
 
     private func buildMenu() -> NSMenu {
