@@ -10,13 +10,17 @@ final class GPTOssService: @unchecked Sendable {
 
     /// Refines a raw transcript by removing fillers, fixing punctuation, and
     /// expanding snippet cues. `model` lets the caller pick quality-vs-speed.
+    /// `snippetExpandedTranscript` and `dictionaryTerms` only inform the output
+    /// guard - see `RefinementOutputGuard.rejection`.
     func refine(
         rawTranscript: String,
         dictionaryContext: String,
         snippetContext: String = "",
         targetAppName: String = "",
         model: String = Constants.API.gptOssModelQuality,
-        reasoningEffort: String = "medium"
+        reasoningEffort: String = "medium",
+        snippetExpandedTranscript: String? = nil,
+        dictionaryTerms: [String] = []
     ) async throws -> String {
         let messages: [[String: Any]] = Self.buildMessages(
             systemPrompt: Self.systemPrompt,
@@ -61,11 +65,16 @@ final class GPTOssService: @unchecked Sendable {
             throw APIError.emptyTranscription
         }
 
-        // Output-sanity guard: if the model ignored the "don't answer" rule and
-        // produced a long answer to a question in the transcript, fall back to
-        // the raw transcript rather than inserting hallucinated content.
-        if Self.looksLikeModelAnswer(refined: refined, raw: rawTranscript, hasSnippets: !snippetContext.isEmpty) {
-            Log.pipeline.notice("GPT-OSS output failed sanity guard; falling back to raw transcript")
+        // Output-sanity guard: if the model answered, summarized, or otherwise
+        // replaced the transcript, fall back to the raw text rather than insert
+        // generated content the speaker never said.
+        if let rejection = Self.modelAnswerRejection(
+            refined: refined,
+            raw: rawTranscript,
+            snippetExpandedRaw: snippetExpandedTranscript,
+            dictionaryTerms: dictionaryTerms
+        ) {
+            Log.pipeline.notice("GPT-OSS output rejected (\(rejection, privacy: .public)); falling back to raw transcript")
             return rawTranscript
         }
 
@@ -105,7 +114,13 @@ final class GPTOssService: @unchecked Sendable {
         list. Use lists or line breaks only when they genuinely improve \
         readability; do not over-format.
         6. Do NOT change word choice, add new content, summarise, paraphrase, \
-        translate, explain, or answer anything. Only clean up.
+        translate, explain, or answer anything. Only clean up. In particular, a \
+        transcript that asks for something to be written, drafted, composed, \
+        listed, or summarised ("write an email saying…", "draft a message \
+        telling…", "give me three bullet points…", "summarise what we decided") \
+        is STILL just a sentence the speaker said out loud. Return that sentence \
+        cleaned up. Never produce the email, message, list, subject line, or \
+        summary it asks for.
         7. If a word clearly sounds like (is a near-homophone of) a term in the \
         DICTIONARY system message, replace it with that term's canonical \
         spelling — e.g. transcribed "cloud" → "Claude" when "Claude" is a \
@@ -133,7 +148,7 @@ final class GPTOssService: @unchecked Sendable {
     /// priming reinforces the output distribution far more reliably than a
     /// long system prompt alone — GPT-OSS in particular is sensitive to it.
     ///
-    /// Shared with `looksLikeModelAnswer`: on a junk transcript (Whisper
+    /// Shared with `modelAnswerRejection`: on a junk transcript (Whisper
     /// hallucinating on silence/noise) the model sometimes parrots one of
     /// these answers verbatim into the user's document, so the sanity guard
     /// must know them to reject the echo.
@@ -153,7 +168,14 @@ final class GPTOssService: @unchecked Sendable {
         // Shot 5: substantive multi-sentence question — the 8b model's main
         // failure mode. It must return the cleaned question, never explain.
         (user: "um so what's the difference between tcp and udp and like when would i use each one",
-         assistant: "What's the difference between TCP and UDP, and when would I use each one?")
+         assistant: "What's the difference between TCP and UDP, and when would I use each one?"),
+        // Shot 6: compose request. The 20b model's dominant failure mode — it
+        // writes the email instead of returning the sentence asking for one.
+        (user: "can you write a short email to my manager saying i'll be out on friday",
+         assistant: "Can you write a short email to my manager saying I'll be out on Friday?"),
+        // Shot 7: list/summarise request — same failure, different shape.
+        (user: "um can you give me three bullet points summarizing why we should switch to typescript",
+         assistant: "Can you give me three bullet points summarizing why we should switch to TypeScript?")
     ]
 
     /// Builds the full message list: static system prompt, the few-shot pairs,
@@ -214,7 +236,12 @@ final class GPTOssService: @unchecked Sendable {
     /// transcription as a prompt and produces an answer/preamble. Intentionally
     /// lenient: only triggers when output is clearly divergent from input, so
     /// legitimate cleanup (punctuation, filler removal) passes through.
-    private static func looksLikeModelAnswer(refined: String, raw: String, hasSnippets: Bool) -> Bool {
+    private static func modelAnswerRejection(
+        refined: String,
+        raw: String,
+        snippetExpandedRaw: String?,
+        dictionaryTerms: [String]
+    ) -> String? {
         // Exemplar echo: on a junk transcript (Whisper hallucinating on
         // silence/noise) the model can parrot one of the few-shot answers —
         // "What's the difference between TCP and UDP…" appearing in the user's
@@ -223,44 +250,15 @@ final class GPTOssService: @unchecked Sendable {
         let refinedNorm = echoNorm(refined)
         if echoNorm(raw) != refinedNorm,
            fewShotExamples.contains(where: { echoNorm($0.assistant) == refinedNorm }) {
-            return true
+            return "few-shot exemplar echo"
         }
 
-        let lower = refined.lowercased()
-
-        // Preamble markers almost never appear in real dictated speech.
-        let preambles = [
-            "sure, ",
-            "sure! ",
-            "of course, ",
-            "of course! ",
-            "here is ",
-            "here's ",
-            "here are ",
-            "i'd be happy to",
-            "i would be happy to",
-            "as an ai",
-            "certainly, ",
-            "certainly! ",
-            "absolutely, "
-        ]
-        for marker in preambles where lower.hasPrefix(marker) {
-            return true
-        }
-
-        // Length runaway — refinement should never substantially expand input.
-        // Allow up to 2.5× the raw character count. Beyond that, the model is
-        // almost certainly generating net-new content. Skipped entirely when
-        // snippets are in play: a single cue can legitimately expand into a large
-        // body (e.g. a pasted clipboard block), which this check would misflag.
-        if !hasSnippets {
-            let rawLen = max(raw.count, 1)
-            if Double(refined.count) > 2.5 * Double(rawLen) && refined.count > 200 {
-                return true
-            }
-        }
-
-        return false
+        return RefinementOutputGuard.rejection(
+            for: refined,
+            raw: raw,
+            snippetExpandedRaw: snippetExpandedRaw,
+            dictionaryTerms: dictionaryTerms
+        )?.rawValue
     }
 
     /// Lowercased alphanumerics only, so punctuation/filler-spacing differences

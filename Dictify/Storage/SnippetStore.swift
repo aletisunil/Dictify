@@ -55,14 +55,21 @@ final class SnippetStore: ObservableObject {
     /// inside some snippet's body is indistinguishable from expanded output,
     /// and expanding it again would duplicate the body. Such cues are left to
     /// the model; cues occurring in no body are safe to expand.
-    func expandCues(in text: String, skippingCuesEmbeddedInBodies: Bool = false) -> String {
+    ///
+    /// `resolvingClipboard: false` keeps `{{clipboard}}` literal, mirroring
+    /// what the refinement model is given.
+    func expandCues(
+        in text: String,
+        skippingCuesEmbeddedInBodies: Bool = false,
+        resolvingClipboard: Bool = true
+    ) -> String {
         // First snippet wins when two cues normalize identically (the editor
         // only blocks exact-duplicate cues, not e.g. "paste-clip" vs "pasteclip").
         var bodyByCue: [String: String] = [:]
         for snippet in snippets {
             let cueNorm = Self.normalizeForCueMatch(snippet.cue)
             guard !cueNorm.isEmpty, bodyByCue[cueNorm] == nil else { continue }
-            bodyByCue[cueNorm] = snippet.expandedBody()
+            bodyByCue[cueNorm] = snippet.expandedBody(resolvingClipboard: resolvingClipboard)
         }
         if skippingCuesEmbeddedInBodies {
             let bodies = Array(bodyByCue.values)

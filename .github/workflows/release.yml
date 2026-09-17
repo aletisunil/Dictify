@@ -45,6 +45,16 @@ jobs:
             exit 1
           }
 
+      - name: Unit tests
+        run: |
+          xcodebuild \
+            -project Dictify.xcodeproj \
+            -scheme DictifyTests \
+            -configuration Debug \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+
       - name: Compile Release (no signing)
         run: |
           xcodebuild \

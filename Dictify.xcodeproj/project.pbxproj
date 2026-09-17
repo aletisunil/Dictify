@@ -16,6 +16,9 @@
 		A10000007 /* GroqClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000007 /* GroqClient.swift */; };
 		A10000008 /* WhisperService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000008 /* WhisperService.swift */; };
 		A10000009 /* GPTOssService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000009 /* GPTOssService.swift */; };
+		A10000092 /* RefinementOutputGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000092 /* RefinementOutputGuard.swift */; };
+		A10000093 /* RefinementOutputGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000092 /* RefinementOutputGuard.swift */; };
+		A10000094 /* RefinementOutputGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000094 /* RefinementOutputGuardTests.swift */; };
 		A10000010 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000010 /* APIError.swift */; };
 		A10000011 /* AccessibilityInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000011 /* AccessibilityInserter.swift */; };
 		A10000012 /* ClipboardPaster.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000012 /* ClipboardPaster.swift */; };
@@ -86,6 +89,9 @@
 		B10000007 /* GroqClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqClient.swift; sourceTree = "<group>"; };
 		B10000008 /* WhisperService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperService.swift; sourceTree = "<group>"; };
 		B10000009 /* GPTOssService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GPTOssService.swift; sourceTree = "<group>"; };
+		B10000092 /* RefinementOutputGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefinementOutputGuard.swift; sourceTree = "<group>"; };
+		B10000093 /* DictifyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DictifyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000094 /* RefinementOutputGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefinementOutputGuardTests.swift; sourceTree = "<group>"; };
 		B10000010 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
 		B10000011 /* AccessibilityInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityInserter.swift; sourceTree = "<group>"; };
 		B10000012 /* ClipboardPaster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPaster.swift; sourceTree = "<group>"; };
@@ -140,6 +146,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C10000021 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -147,6 +160,7 @@
 			isa = PBXGroup;
 			children = (
 				D10000002 /* Dictify */,
+				D10000040 /* DictifyTests */,
 				D10000099 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -215,6 +229,7 @@
 				B10000007 /* GroqClient.swift */,
 				B10000008 /* WhisperService.swift */,
 				B10000009 /* GPTOssService.swift */,
+				B10000092 /* RefinementOutputGuard.swift */,
 				B10000010 /* APIError.swift */,
 			);
 			path = API;
@@ -353,6 +368,14 @@
 			path = Diagnostics;
 			sourceTree = "<group>";
 		};
+		D10000040 /* DictifyTests */ = {
+			isa = PBXGroup;
+			children = (
+				B10000094 /* RefinementOutputGuardTests.swift */,
+			);
+			path = DictifyTests;
+			sourceTree = "<group>";
+		};
 		D10000050 /* Main */ = {
 			isa = PBXGroup;
 			children = (
@@ -365,6 +388,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000000 /* Dictify.app */,
+				B10000093 /* DictifyTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -390,6 +414,22 @@
 			productReference = B10000000 /* Dictify.app */;
 			productType = "com.apple.product-type.application";
 		};
+		E10000020 /* DictifyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F10000004 /* Build configuration list for PBXNativeTarget "DictifyTests" */;
+			buildPhases = (
+				E10000021 /* Sources */,
+				C10000021 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DictifyTests;
+			productName = DictifyTests;
+			productReference = B10000093 /* DictifyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -401,6 +441,9 @@
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					E10000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					E10000020 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -423,6 +466,7 @@
 			projectRoot = "";
 			targets = (
 				E10000001 /* Dictify */,
+				E10000020 /* DictifyTests */,
 			);
 		};
 /* End PBXProject section */
@@ -455,6 +499,7 @@
 				A10000007 /* GroqClient.swift in Sources */,
 				A10000008 /* WhisperService.swift in Sources */,
 				A10000009 /* GPTOssService.swift in Sources */,
+				A10000092 /* RefinementOutputGuard.swift in Sources */,
 				A10000010 /* APIError.swift in Sources */,
 				A10000011 /* AccessibilityInserter.swift in Sources */,
 				A10000012 /* ClipboardPaster.swift in Sources */,
@@ -491,6 +536,15 @@
 				A10000060 /* LogCollector.swift in Sources */,
 				A10000061 /* LogRedactor.swift in Sources */,
 				A10000062 /* DiagnosticsBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E10000021 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000093 /* RefinementOutputGuard.swift in Sources */,
+				A10000094 /* RefinementOutputGuardTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -673,6 +727,38 @@
 			};
 			name = Release;
 		};
+		F10000014 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		F10000015 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.dictify.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -690,6 +776,15 @@
 			buildConfigurations = (
 				F10000012 /* Debug */,
 				F10000013 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F10000004 /* Build configuration list for PBXNativeTarget "DictifyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F10000014 /* Debug */,
+				F10000015 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

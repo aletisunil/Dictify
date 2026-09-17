@@ -371,13 +371,23 @@ actor TranscriptionPipeline {
                 let effort = Self.resolveReasoningEffort(from: speedMode)
                 let appAware = await MainActor.run { settings.appAwareToneEnabled }
                 let targetApp = appAware ? (frontmostAppName ?? "") : ""
+                // The output guard compares against the transcript both as
+                // spoken and with matched cues expanded, since the model may or
+                // may not expand a cue. Clipboard stays a literal placeholder,
+                // matching what the model sees.
+                let snippetExpanded: String? = hasSnippets
+                    ? await MainActor.run { snippetStore.expandCues(in: rawTranscript, resolvingClipboard: false) }
+                    : nil
+                let dictionaryTerms = await MainActor.run { dictionaryStore.entries.map(\.term) }
                 finalText = try await gptOssService.refine(
                     rawTranscript: rawTranscript,
                     dictionaryContext: dictContext,
                     snippetContext: snippetCtx,
                     targetAppName: targetApp,
                     model: model,
-                    reasoningEffort: effort
+                    reasoningEffort: effort,
+                    snippetExpandedTranscript: snippetExpanded,
+                    dictionaryTerms: dictionaryTerms
                 )
                 refinementSucceeded = true
             } catch APIError.cancelled, is CancellationError {
