@@ -919,13 +919,7 @@ struct TranscriptionCardRow: View {
             if showComparison && !isEditing {
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()
-                    if let diff = TranscriptDiff.attributed(from: record.rawText, to: record.refinedText) {
-                        ComparisonBlock(label: "Changes", icon: "sparkles", attributed: diff)
-                    } else {
-                        // Refinement rewrote nearly everything; a word diff
-                        // would be noise, so show the original text plainly.
-                        ComparisonBlock(label: "Original", icon: "waveform", text: record.rawText)
-                    }
+                    ComparisonBlock(label: "Original", icon: "waveform", text: record.rawText)
                 }
             }
 
@@ -993,28 +987,30 @@ struct TranscriptionCardRow: View {
     }
 }
 
-/// One labeled text block inside the before/after refinement comparison.
+/// One labeled text block inside the before/after refinement comparison,
+/// with its own copy button so the original transcription can be lifted out
+/// independently of the refined text above it.
 private struct ComparisonBlock: View {
     let label: String
     let icon: String
-    let attributed: AttributedString
+    let text: String
 
-    init(label: String, icon: String, attributed: AttributedString) {
-        self.label = label
-        self.icon = icon
-        self.attributed = attributed
-    }
-
-    init(label: String, icon: String, text: String) {
-        self.init(label: label, icon: icon, attributed: AttributedString(text))
-    }
+    @State private var copied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(label, systemImage: icon)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-            Text(attributed)
+            HStack(spacing: 6) {
+                Label(copied ? "Copied" : label, systemImage: copied ? "checkmark" : icon)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(copied ? Color.green : Color.secondary)
+                Spacer(minLength: 0)
+                IconButton(systemName: copied ? "checkmark" : "doc.on.doc",
+                           tint: copied ? .green : .secondary,
+                           help: "Copy original transcription") {
+                    copyText()
+                }
+            }
+            Text(text)
                 .font(.system(size: 12))
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.leading)
@@ -1028,118 +1024,14 @@ private struct ComparisonBlock: View {
                 )
         }
     }
-}
 
-/// Word-level diff between the raw transcription and the refined text,
-/// rendered as one merged block: removed words in red strikethrough,
-/// added words in green, unchanged words dimmed.
-private enum TranscriptDiff {
-    private enum Kind {
-        case same, removed, added
-    }
-
-    /// Marker token representing a paragraph break, so the diff keeps the
-    /// refined text's line structure without diffing raw whitespace (which
-    /// makes removed and added words collide when rendered).
-    private static let newline = "\n"
-
-    static func attributed(from old: String, to new: String) -> AttributedString? {
-        let oldTokens = tokenize(old)
-        let newTokens = tokenize(new)
-        // Diff cost grows with edit distance; dictation snippets are short,
-        // but guard against pathological inputs.
-        guard oldTokens.count <= 2000, newTokens.count <= 2000 else { return nil }
-
-        let difference = newTokens.difference(from: oldTokens)
-        var removedOffsets = Set<Int>()
-        var insertedOffsets = Set<Int>()
-        for change in difference {
-            switch change {
-            case .remove(let offset, _, _): removedOffsets.insert(offset)
-            case .insert(let offset, _, _): insertedOffsets.insert(offset)
-            }
+    private func copyText() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        withMotionAnimation(.easeOut(duration: 0.15)) { copied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withMotionAnimation(.easeOut(duration: 0.15)) { copied = false }
         }
-
-        // If refinement rewrote nearly everything, a merged diff is unreadable.
-        let changed = removedOffsets.count + insertedOffsets.count
-        let total = oldTokens.count + newTokens.count
-        guard total > 0, Double(changed) / Double(total) <= 0.7 else { return nil }
-
-        var result = AttributedString()
-        func append(_ token: String, _ kind: Kind) {
-            if token == newline {
-                result += AttributedString(newline)
-                return
-            }
-            var run = AttributedString(token)
-            switch kind {
-            case .same:
-                run[AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self] = .secondary
-            case .removed:
-                run[AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self] = .red
-                run[AttributeScopes.SwiftUIAttributes.StrikethroughStyleAttribute.self] = .single
-            case .added:
-                // Underline as well as green so additions survive red-green
-                // color blindness (removed text has strikethrough for the same
-                // reason).
-                run[AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self] = .green
-                run[AttributeScopes.SwiftUIAttributes.UnderlineStyleAttribute.self] = .single
-            }
-            result += run
-            result += AttributedString(" ")
-        }
-
-        var i = 0, j = 0
-        while i < oldTokens.count || j < newTokens.count {
-            if i < oldTokens.count, removedOffsets.contains(i) {
-                append(oldTokens[i], .removed)
-                i += 1
-            } else if j < newTokens.count, insertedOffsets.contains(j) {
-                append(newTokens[j], .added)
-                j += 1
-            } else if i < oldTokens.count, j < newTokens.count {
-                append(newTokens[j], .same)
-                i += 1
-                j += 1
-            } else {
-                // Offsets from CollectionDifference always consume both
-                // sequences fully, so this is unreachable; bail defensively.
-                return nil
-            }
-        }
-
-        while let last = result.characters.last, last == " " || last == "\n" {
-            result.removeSubrange(result.index(beforeCharacter: result.endIndex)..<result.endIndex)
-        }
-        return result
-    }
-
-    /// Splits text into word tokens, with a marker token for whitespace runs
-    /// containing a line break so paragraph structure survives the diff.
-    private static func tokenize(_ text: String) -> [String] {
-        var tokens: [String] = []
-        var word = ""
-        var whitespaceHadNewline = false
-        func flushWord() {
-            if !word.isEmpty {
-                tokens.append(word)
-                word = ""
-            }
-        }
-        for char in text {
-            if char.isWhitespace {
-                flushWord()
-                if char.isNewline { whitespaceHadNewline = true }
-            } else {
-                if whitespaceHadNewline {
-                    tokens.append(newline)
-                    whitespaceHadNewline = false
-                }
-                word.append(char)
-            }
-        }
-        flushWord()
-        return tokens
     }
 }
 
