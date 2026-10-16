@@ -19,7 +19,12 @@ enum Constants {
         static let sampleRate: Double = 16000
         static let channels: UInt32 = 1
         static let minRecordingDuration: TimeInterval = 0.5
-        static let maxRecordingDuration: TimeInterval = 120
+        /// Hard cap on a single dictation; capture auto-stops and transcribes.
+        /// 5 min of 16 kHz 16-bit mono WAV is ~9.6 MB, well under Groq's
+        /// 25 MB upload limit.
+        static let maxRecordingDuration: TimeInterval = 300
+        /// How long before the cap the indicator switches to a countdown.
+        static let recordingCapWarningLead: TimeInterval = 10
         /// Default only. Overridable via `DictifySettings.tapHoldThreshold`.
         static let tapHoldThreshold: TimeInterval = 0.2
     }

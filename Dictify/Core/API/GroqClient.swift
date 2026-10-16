@@ -23,7 +23,9 @@ final class GroqClient: @unchecked Sendable {
     private static func makeSession() -> URLSession {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 90
+        // Bounds the whole request, upload included. A 5-minute dictation is
+        // ~9.6 MB of WAV, which needs ~80s on a 1 Mbps uplink.
+        config.timeoutIntervalForResource = 180
         config.waitsForConnectivity = true
         return URLSession(configuration: config)
     }

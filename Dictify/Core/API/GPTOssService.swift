@@ -34,7 +34,10 @@ final class GPTOssService: @unchecked Sendable {
             "model": model,
             "messages": messages,
             "temperature": 0.1,
-            "max_tokens": 2048,
+            // Covers reasoning plus the cleaned text. A 5-minute dictation is
+            // ~1,000 words (~1,300 tokens) before reasoning, so 2048 could cut
+            // the end of a long dictation off.
+            "max_tokens": 8192,
             // GPT-OSS is a reasoning model. Cleanup needs some reasoning to
             // restructure rambling speech into clean grammar — "low" was too
             // shallow and left output rough, so use "medium". "parsed" keeps
@@ -56,7 +59,15 @@ final class GPTOssService: @unchecked Sendable {
 
         let response = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
 
-        guard let content = response.choices.first?.message.content else {
+        guard let choice = response.choices.first, let content = choice.message.content else {
+            throw APIError.invalidResponse
+        }
+
+        // A truncated cleanup silently drops the end of the dictation, and the
+        // output guard only catches severe contraction. Throwing routes the
+        // pipeline to the raw transcript, which is complete.
+        if choice.finishReason == "length" {
+            Log.pipeline.notice("GPT-OSS output truncated at max_tokens; falling back to raw transcript")
             throw APIError.invalidResponse
         }
 
@@ -273,6 +284,12 @@ private struct ChatCompletionResponse: Decodable {
 
     struct Choice: Decodable {
         let message: Message
+        let finishReason: String?
+
+        enum CodingKeys: String, CodingKey {
+            case message
+            case finishReason = "finish_reason"
+        }
     }
 
     struct Message: Decodable {
