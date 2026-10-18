@@ -267,10 +267,10 @@ final class PageAccessibility: @unchecked Sendable {
                 states[lease.pid] = nil
                 return
             }
-            let restore = DispatchWorkItem { [self] in restore(pid: lease.pid) }
-            state.pendingRestore = restore
+            let work = DispatchWorkItem { [self] in self.restore(pid: lease.pid) }
+            state.pendingRestore = work
             states[lease.pid] = state
-            queue.asyncAfter(deadline: .now() + Self.releaseGrace, execute: restore)
+            queue.asyncAfter(deadline: .now() + Self.releaseGrace, execute: work)
         }
     }
 
