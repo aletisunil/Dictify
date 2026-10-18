@@ -60,11 +60,28 @@ final class DictifySettings {
         set { defaults.set(newValue, forKey: "refinementSpeedMode") }
     }
 
-    /// When on, the frontmost app's name is passed to refinement so the LLM
-    /// matches that app's typical writing register (email vs chat vs code).
+    /// When on, the frontmost app's name and, in a browser, the page's host are
+    /// passed to refinement so the LLM matches that target's register (email
+    /// vs chat vs code).
     var appAwareToneEnabled: Bool {
         get { defaults.object(forKey: "appAwareToneEnabled") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "appAwareToneEnabled") }
+    }
+
+    /// When on, the text around the cursor in the focused field is sent with
+    /// the transcript so refinement can continue it (capitalization, names,
+    /// style). Never read from secure fields or terminals.
+    var fieldContextEnabled: Bool {
+        get { defaults.object(forKey: "fieldContextEnabled") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "fieldContextEnabled") }
+    }
+
+    /// When on, Dictify watches the field briefly after inserting and, when
+    /// the user corrects a misheard name or term, adds it to the dictionary.
+    /// Everything stays on the Mac; only the learned term joins the dictionary.
+    var learnFromCorrectionsEnabled: Bool {
+        get { defaults.object(forKey: "learnFromCorrectionsEnabled") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "learnFromCorrectionsEnabled") }
     }
 
     /// Core Audio UID of the preferred microphone. Empty string means "follow

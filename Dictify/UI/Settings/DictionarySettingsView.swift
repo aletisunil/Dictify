@@ -14,6 +14,11 @@ struct DictionarySettingsView: View {
         return entries.filter { $0.term.localizedCaseInsensitiveContains(searchText) }
     }
 
+    private func heardAsSubtitle(_ entry: DictionaryEntry) -> String? {
+        guard !entry.heardAs.isEmpty else { return nil }
+        return "Heard as " + entry.heardAs.map { "\u{201C}\($0.text)\u{201D}" }.joined(separator: ", ")
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Space.lg) {
@@ -28,7 +33,7 @@ struct DictionarySettingsView: View {
 
                 DSSectionHeader(
                     title: "Dictionary",
-                    subtitle: "Custom terms Dictify favours when transcribing and refining."
+                    subtitle: "Custom terms Dictify favours when transcribing and refining. Names you correct after a dictation are added here automatically."
                 )
 
                 LibraryToolbar(
@@ -54,9 +59,12 @@ struct DictionarySettingsView: View {
                             if index > 0 { Divider().background(Color.appHairline) }
                             LibraryRow(
                                 title: entry.term,
-                                subtitle: nil,
+                                subtitle: heardAsSubtitle(entry),
                                 badges: {
                                     Badge(text: entry.category)
+                                    if entry.source == .learned {
+                                        Badge(text: "auto-learned", tint: .secondary)
+                                    }
                                 },
                                 onEdit: { editingEntry = entry },
                                 onDelete: { store?.remove(entry) }
@@ -97,7 +105,10 @@ struct DictionarySettingsView: View {
 struct DictionaryEntryEditor: View {
     @State private var term: String
     @State private var category: String
-    private let existingId: UUID?
+    @State private var heardAs: [DictionaryEntry.HeardAs]
+    /// Kept whole so saving an edit preserves what was learned about the
+    /// term (misheard forms, usage), not just its spelling and category.
+    private let existing: DictionaryEntry?
     let isDuplicate: (String) -> Bool
     let onSave: (DictionaryEntry) -> Void
     let onCancel: () -> Void
@@ -105,7 +116,8 @@ struct DictionaryEntryEditor: View {
     init(entry: DictionaryEntry? = nil, isDuplicate: @escaping (String) -> Bool, onSave: @escaping (DictionaryEntry) -> Void, onCancel: @escaping () -> Void) {
         _term = State(initialValue: entry?.term ?? "")
         _category = State(initialValue: entry?.category ?? "general")
-        existingId = entry?.id
+        _heardAs = State(initialValue: entry?.heardAs ?? [])
+        existing = entry
         self.isDuplicate = isDuplicate
         self.onSave = onSave
         self.onCancel = onCancel
@@ -120,7 +132,7 @@ struct DictionaryEntryEditor: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Text(existingId != nil ? "Edit Term" : "Add Term")
+            Text(existing != nil ? "Edit Term" : "Add Term")
                 .font(.dsHeadline)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -140,6 +152,33 @@ struct DictionaryEntryEditor: View {
                     Text("Brand").tag("brand")
                 }
                 .creamFormRow()
+                if !heardAs.isEmpty {
+                    Section {
+                        ForEach(heardAs, id: \.self) { form in
+                            HStack {
+                                Text("\u{201C}\(form.text)\u{201D}")
+                                if form.autoReplace {
+                                    Badge(text: "replaced automatically", tint: .secondary)
+                                }
+                                Spacer()
+                                Button {
+                                    heardAs.removeAll { $0 == form }
+                                } label: {
+                                    Image(systemName: "minus.circle")
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Forget this form")
+                            }
+                            .creamFormRow()
+                        }
+                    } header: {
+                        Text("Heard as")
+                    } footer: {
+                        Text("Transcriptions you corrected into this term. Remove one that was not a mishearing.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .formStyle(.grouped)
             .creamFormBackground()
@@ -149,11 +188,10 @@ struct DictionaryEntryEditor: View {
                     .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Save") {
-                    let entry = DictionaryEntry(
-                        id: existingId ?? UUID(),
-                        term: term,
-                        category: category
-                    )
+                    var entry = existing ?? DictionaryEntry(term: term)
+                    entry.term = term
+                    entry.category = category
+                    entry.heardAs = heardAs
                     onSave(entry)
                 }
                 .buttonStyle(.borderedProminent)

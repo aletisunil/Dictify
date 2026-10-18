@@ -56,27 +56,29 @@ actor TranscriptionPipeline {
     /// Inputs `startRecording` needs from the main actor, snapshotted in a
     /// single hop so the hotkey→capture path pays one context switch, not four.
     private struct StartContext {
-        let frontmostAppName: String?
+        /// What `TargetContextReader` needs; nil when both context settings
+        /// are off or no app is frontmost.
+        let targetRequest: TargetContextReader.Request?
+        /// The app to watch for corrections after insertion; nil when
+        /// learning is off or no other app is frontmost.
+        let correctionTarget: CorrectionWatcher.Target?
         let preferredDeviceUID: String
     }
-    /// Name of the app focused when this dictation started — the app the text
-    /// will be inserted into. Snapshotted at start because focus can move by
-    /// insertion time. Used to tune refinement tone when app-aware tone is on.
-    private var frontmostAppName: String?
-    /// Browsers whose window is a web app, not a native app — the bundle name
-    /// tells us nothing about the register, so tone stays neutral for these.
-    private static let browserBundleIDs: Set<String> = [
-        "com.apple.Safari",
-        "com.apple.SafariTechnologyPreview",
-        "com.google.Chrome",
-        "com.google.Chrome.canary",
-        "com.microsoft.edgemac",
-        "org.mozilla.firefox",
-        "com.brave.Browser",
-        "com.operasoftware.Opera",
-        "company.thebrowser.Browser", // Arc
-        "com.vivaldi.Vivaldi",
-    ]
+    /// The app (and, in a browser, website) focused when this dictation
+    /// started, plus the text around its cursor - where the text will be
+    /// inserted. Read at start because focus can move by insertion time, and
+    /// in the background because every AX read is IPC into the target app.
+    /// Awaited once transcription is done.
+    private var targetContextTask: Task<TargetContext, Never>?
+    private var correctionTarget: CorrectionWatcher.Target?
+    /// Watches the last insertion for the user's corrections. The next
+    /// dictation cancels it, which ends the watch with what it has seen.
+    private var correctionWatchTask: Task<Void, Never>?
+    /// Counts dictations that got past start. A dictation still processing
+    /// when a newer one has started must not start a correction watch: the
+    /// newer one already ended the previous watch and may insert into the
+    /// same field.
+    private var dictationCount = 0
 
     init(appState: AppState,
          keychainManager: KeychainManager,
@@ -131,18 +133,29 @@ actor TranscriptionPipeline {
 
                 // Snapshot the app being dictated into now — focus may move to
                 // Dictify's UI or elsewhere before insertion time. NSWorkspace
-                // is main-thread only. Browsers are left nil: the real target
-                // is whatever web app is loaded, which the app name can't
-                // reveal, so refinement stays neutral there.
-                let app = NSWorkspace.shared.frontmostApplication
-                let appName: String?
-                if let bundleID = app?.bundleIdentifier, Self.browserBundleIDs.contains(bundleID) {
-                    appName = nil
-                } else {
-                    appName = app?.localizedName
+                // is main-thread only; the AX reads happen later, off-main.
+                let includeWebsite = settings.appAwareToneEnabled
+                let includeField = settings.fieldContextEnabled
+                var targetRequest: TargetContextReader.Request?
+                var correctionTarget: CorrectionWatcher.Target?
+                if let app = NSWorkspace.shared.frontmostApplication,
+                   app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+                    if includeWebsite || includeField {
+                        targetRequest = TargetContextReader.Request(
+                            pid: app.processIdentifier,
+                            bundleID: app.bundleIdentifier,
+                            appName: app.localizedName,
+                            includeWebsite: includeWebsite,
+                            includeField: includeField
+                        )
+                    }
+                    if settings.learnFromCorrectionsEnabled {
+                        correctionTarget = CorrectionWatcher.Target(pid: app.processIdentifier, bundleID: app.bundleIdentifier)
+                    }
                 }
                 return StartContext(
-                    frontmostAppName: appName,
+                    targetRequest: targetRequest,
+                    correctionTarget: correctionTarget,
                     preferredDeviceUID: settings.selectedInputDeviceUID
                 )
             default:
@@ -168,7 +181,16 @@ actor TranscriptionPipeline {
             return
         }
 
-        frontmostAppName = context.frontmostAppName
+        targetContextTask?.cancel()
+        targetContextTask = context.targetRequest.map { request in
+            Task.detached { await TargetContextReader.read(request) }
+        }
+        correctionTarget = context.correctionTarget
+        // The user has moved on to a new dictation: end the previous watch
+        // before this one can insert anything into the same field.
+        dictationCount &+= 1
+        correctionWatchTask?.cancel()
+        correctionWatchTask = nil
 
         // Pause system media before capture opens the mic, so playback never
         // bleeds into the front of the recording. This is a pipe write to the
@@ -252,6 +274,7 @@ actor TranscriptionPipeline {
         }
 
         guard duration >= Constants.Audio.minRecordingDuration else {
+            dropTargetContext()
             await MainActor.run {
                 appState.pipelineState = .idle
                 appState.audioLevels = Array(repeating: 0, count: 15)
@@ -260,10 +283,31 @@ actor TranscriptionPipeline {
             return
         }
 
+        // Handed over now: the next dictation may replace the actor's task
+        // before this one reaches refinement.
+        let targetContext = targetContextTask
+        let correctionTarget = correctionTarget
+        let dictation = dictationCount
+        targetContextTask = nil
+        self.correctionTarget = nil
         processingTask?.cancel()
         processingTask = Task { [weak self] in
-            await self?.processCapturedAudio(pcmData: pcmData, duration: duration)
+            await self?.processCapturedAudio(
+                pcmData: pcmData,
+                duration: duration,
+                targetContext: targetContext,
+                correctionTarget: correctionTarget,
+                dictation: dictation
+            )
         }
+    }
+
+    /// Ends the context read of a dictation that will not be processed.
+    /// The reader may be polling a cold browser for seconds.
+    private func dropTargetContext() {
+        targetContextTask?.cancel()
+        targetContextTask = nil
+        correctionTarget = nil
     }
 
     /// Resume system media iff we paused it for this dictation. Idempotent, and
@@ -272,7 +316,13 @@ actor TranscriptionPipeline {
         await mediaController.resumeAfterDictation()
     }
 
-    private func processCapturedAudio(pcmData: Data, duration: TimeInterval) async {
+    private func processCapturedAudio(
+        pcmData: Data,
+        duration: TimeInterval,
+        targetContext: Task<TargetContext, Never>?,
+        correctionTarget: CorrectionWatcher.Target?,
+        dictation: Int
+    ) async {
         let wavData = WAVEncoder.encode(pcmData: pcmData)
 
         // Start the 100ms focus-handoff wait NOW, concurrent with upload +
@@ -288,7 +338,7 @@ actor TranscriptionPipeline {
         let signpostID = Log.pipelineSignpost.makeSignpostID()
         let state = Log.pipelineSignpost.beginInterval("upload", id: signpostID)
 
-        let rawTranscript: String
+        let whisperText: String
         do {
             try Task.checkCancellation()
             // Snippet cues ride along with the dictionary terms so Whisper
@@ -298,7 +348,7 @@ actor TranscriptionPipeline {
                 let parts = [dictionaryStore.promptString] + snippetStore.cueTerms
                 return parts.filter { !$0.isEmpty }.joined(separator: ", ")
             }
-            rawTranscript = try await whisperService.transcribe(
+            whisperText = try await whisperService.transcribe(
                 wavData: wavData,
                 dictionaryPrompt: dictPrompt
             )
@@ -335,6 +385,17 @@ actor TranscriptionPipeline {
             return
         }
 
+        // Misheard forms the user corrected before, and that are not real
+        // words, are fixed before anything else sees the transcript.
+        let rawTranscript = await MainActor.run { dictionaryStore.applyLearnedReplacements(to: whisperText) }
+
+        // Read in the background since recording started. Normally done by
+        // now; if a cold browser is still building its page tree, cancelling
+        // ends that wait with what was read so far, so context never delays
+        // the dictation.
+        targetContext?.cancel()
+        let target = await targetContext?.value
+
         var finalText = rawTranscript
         var refinementSucceeded = false
 
@@ -362,15 +423,13 @@ actor TranscriptionPipeline {
             let refineState = Log.pipelineSignpost.beginInterval("refine", id: signpostID)
             do {
                 try Task.checkCancellation()
-                let dictContext = await MainActor.run { dictionaryStore.promptString }
+                let dictContext = await MainActor.run { dictionaryStore.refinementContext }
                 // Built on the main actor: resolves {{date}}/{{time}}/{{clipboard}}
                 // before the prompt is sent. Empty string when no snippets exist.
                 let snippetCtx = await MainActor.run { snippetStore.snippetContext() }
                 let speedMode = await MainActor.run { settings.refinementSpeedMode }
                 let model = Self.resolveGPTOssModel(from: speedMode)
                 let effort = Self.resolveReasoningEffort(from: speedMode)
-                let appAware = await MainActor.run { settings.appAwareToneEnabled }
-                let targetApp = appAware ? (frontmostAppName ?? "") : ""
                 // The output guard compares against the transcript both as
                 // spoken and with matched cues expanded, since the model may or
                 // may not expand a cue. Clipboard stays a literal placeholder,
@@ -383,7 +442,7 @@ actor TranscriptionPipeline {
                     rawTranscript: rawTranscript,
                     dictionaryContext: dictContext,
                     snippetContext: snippetCtx,
-                    targetAppName: targetApp,
+                    target: target,
                     model: model,
                     reasoningEffort: effort,
                     snippetExpandedTranscript: snippetExpanded,
@@ -430,6 +489,11 @@ actor TranscriptionPipeline {
             }
         }
 
+        // Refinement can reintroduce a learned misheard form, or produce one
+        // from a transcript that did not contain it.
+        let textToCorrect = finalText
+        finalText = await MainActor.run { dictionaryStore.applyLearnedReplacements(to: textToCorrect) }
+
         // The refinement prompt carries {{clipboard}} as a literal placeholder —
         // clipboard contents never leave the Mac — so resolve whatever the model
         // (or a body spliced above) left behind, locally, right before insertion.
@@ -449,14 +513,36 @@ actor TranscriptionPipeline {
         // Wait for the 100ms focus-handoff window we kicked off at the start of
         // processing; by now it has almost certainly already elapsed.
         _ = await focusHandoffTask.value
-        await insertText(finalText)
+        if Task.isCancelled {
+            Log.pipelineSignpost.endInterval("insert", insertState)
+            await MainActor.run {
+                appState.pipelineState = .idle
+                appState.audioLevels = Array(repeating: 0, count: 15)
+                appState.recordingElapsed = 0
+            }
+            return
+        }
+        // Fit the text to the words around the cursor as it is now: the user
+        // may have moved to another field or spot while Dictify transcribed.
+        // When the field cannot be read now, the text goes in as it is.
+        // History keeps it without the joining spaces.
+        var insertion = finalText
+        if let snapshot = target?.field, let current = await TargetContextReader.currentField() {
+            insertion = current.fitted(finalText, refinedFor: snapshot.join)
+        }
+        finalText = insertion.trimmingCharacters(in: .whitespaces)
+        let inserted = await insertText(insertion)
         Log.pipelineSignpost.endInterval("insert", insertState)
+        if inserted, let correctionTarget {
+            startCorrectionWatch(correctionTarget, inserted: insertion, dictation: dictation)
+        }
 
-        let record = TranscriptionRecord(rawText: rawTranscript, refinedText: finalText, durationSeconds: duration)
+        let record = TranscriptionRecord(rawText: whisperText, refinedText: finalText, durationSeconds: duration)
         let transcribedText = finalText
         await MainActor.run {
             historyStore.add(record)
             statsStore.record(text: transcribedText, durationSeconds: duration)
+            dictionaryStore.recordUse(in: transcribedText)
         }
 
         await MainActor.run {
@@ -472,6 +558,7 @@ actor TranscriptionPipeline {
         cancelMaxDurationStop()
         processingTask?.cancel()
         processingTask = nil
+        dropTargetContext()
         audioEngine.stopCapture()
         await stopElapsedTimer()
         await resumeMediaIfNeeded()
@@ -488,6 +575,7 @@ actor TranscriptionPipeline {
         startGeneration &+= 1
         Log.pipeline.notice("Audio capture interrupted: \(String(describing: reason), privacy: .public)")
         cancelMaxDurationStop()
+        dropTargetContext()
         audioEngine.stopCapture()
         await stopElapsedTimer()
         await resumeMediaIfNeeded()
@@ -530,7 +618,46 @@ actor TranscriptionPipeline {
         }
     }
 
-    private func insertText(_ text: String) async {
+    /// Watches the field for the user's corrections in the background and
+    /// adds the accepted ones to the dictionary.
+    private func startCorrectionWatch(_ target: CorrectionWatcher.Target, inserted: String, dictation: Int) {
+        guard dictation == dictationCount else {
+            Log.pipeline.notice("Correction watch skipped: a newer dictation has started")
+            return
+        }
+        correctionWatchTask?.cancel()
+        let store = dictionaryStore
+        correctionWatchTask = Task.detached {
+            let corrections = await CorrectionWatcher.watch(target, inserted: inserted)
+            guard !corrections.isEmpty else { return }
+            await MainActor.run {
+                var learned = 0
+                var awaitingRepeat = 0
+                var autoReplace = 0
+                for correction in corrections {
+                    switch CorrectionLearner.assess(correction) {
+                    case .reject:
+                        continue
+                    case .learn(let replace):
+                        guard store.learn(term: correction.corrected, heard: correction.heard, autoReplace: replace) else { continue }
+                        learned += 1
+                        if replace { autoReplace += 1 }
+                    case .confirmFirst(let replace):
+                        if store.learnWhenConfirmed(term: correction.corrected, heard: correction.heard, autoReplace: replace) {
+                            learned += 1
+                            if replace { autoReplace += 1 }
+                        } else {
+                            awaitingRepeat += 1
+                        }
+                    }
+                }
+                Log.pipeline.notice("Learned \(learned, privacy: .public) of \(corrections.count, privacy: .public) correction(s), \(autoReplace, privacy: .public) auto-replacing, \(awaitingRepeat, privacy: .public) awaiting a repeat")
+            }
+        }
+    }
+
+    /// Returns true when the text reached the field.
+    private func insertText(_ text: String) async -> Bool {
         // Focus-handoff wait is now overlapped with upload + refine in
         // `processCapturedAudio`, so by the time we reach here the target app
         // has regained focus. No fresh sleep needed.
@@ -541,7 +668,7 @@ actor TranscriptionPipeline {
             await MainActor.run {
                 AccessibilityInserter.announceInsertionSuccess()
             }
-            return
+            return true
         }
 
         // Fallback to clipboard paste — works with Electron apps (WhatsApp, Slack, etc.)
@@ -556,10 +683,12 @@ actor TranscriptionPipeline {
             await MainActor.run {
                 AccessibilityInserter.announceInsertionSuccess()
             }
+            return true
         case .skippedSecureField, .postEventDenied:
             await MainActor.run {
                 Self.presentInsertionFailureAlert(text: text, outcome: pasteOutcome)
             }
+            return false
         }
     }
 

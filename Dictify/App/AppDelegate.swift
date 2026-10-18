@@ -297,6 +297,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Quitting mid-dictation must not leave system media paused forever.
         mediaController?.resumeOnTerminate()
+        // Nor a browser's page accessibility tree on for good.
+        PageAccessibility.shared.restoreAll()
+        appState.dictionaryStore?.flush()
         mediaController?.invalidate()
         keyMonitor?.invalidate()
         permissionManager?.invalidate()

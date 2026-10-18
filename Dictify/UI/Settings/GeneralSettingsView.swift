@@ -13,6 +13,8 @@ struct GeneralSettingsView: View {
     @AppStorage("refinementEnabled") private var refinementEnabled: Bool = true
     @AppStorage("refinementSpeedMode") private var refinementSpeedMode: String = "quality"
     @AppStorage("appAwareToneEnabled") private var appAwareToneEnabled: Bool = true
+    @AppStorage("fieldContextEnabled") private var fieldContextEnabled: Bool = true
+    @AppStorage("learnFromCorrectionsEnabled") private var learnFromCorrectionsEnabled: Bool = true
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
     @AppStorage("soundEffectsEnabled") private var soundEffectsEnabled: Bool = true
     @AppStorage("pauseMediaDuringDictation") private var pauseMediaDuringDictation: Bool = true
@@ -157,7 +159,18 @@ struct GeneralSettingsView: View {
 
                 Toggle("Match tone to the app", isOn: $appAwareToneEnabled)
                     .disabled(!refinementEnabled)
-                Text("Adjusts formality to fit the app you're dictating into — polished for email, casual for chat, literal for code. Web apps in a browser stay neutral.")
+                Text("Adjusts formality to fit the app or website you're dictating into: laid out as an email in Mail or Gmail, casual in Slack, literal for code.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle("Use text around the cursor", isOn: $fieldContextEnabled)
+                    .disabled(!refinementEnabled)
+                Text("Sends nearby text from the field you're dictating into, so cleanup can continue your sentence and match names. Never reads password fields or terminals.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Toggle("Learn from corrections", isOn: $learnFromCorrectionsEnabled)
+                Text("When you fix a misheard name or term right after dictating, Dictify adds it to your dictionary. The text you edit never leaves your Mac.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

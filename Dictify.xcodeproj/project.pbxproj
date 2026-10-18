@@ -19,6 +19,11 @@
 		A10000092 /* RefinementOutputGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000092 /* RefinementOutputGuard.swift */; };
 		A10000093 /* RefinementOutputGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000092 /* RefinementOutputGuard.swift */; };
 		A10000094 /* RefinementOutputGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000094 /* RefinementOutputGuardTests.swift */; };
+		A10000095 /* TargetContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000095 /* TargetContext.swift */; };
+		A10000096 /* TargetContextReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000096 /* TargetContextReader.swift */; };
+		A10000097 /* AXAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000097 /* AXAccess.swift */; };
+		A10000098 /* CorrectionLearner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000098 /* CorrectionLearner.swift */; };
+		A10000099 /* CorrectionWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000099 /* CorrectionWatcher.swift */; };
 		A10000010 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000010 /* APIError.swift */; };
 		A10000011 /* AccessibilityInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000011 /* AccessibilityInserter.swift */; };
 		A10000012 /* ClipboardPaster.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000012 /* ClipboardPaster.swift */; };
@@ -92,6 +97,11 @@
 		B10000092 /* RefinementOutputGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefinementOutputGuard.swift; sourceTree = "<group>"; };
 		B10000093 /* DictifyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DictifyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B10000094 /* RefinementOutputGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefinementOutputGuardTests.swift; sourceTree = "<group>"; };
+		B10000095 /* TargetContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetContext.swift; sourceTree = "<group>"; };
+		B10000096 /* TargetContextReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetContextReader.swift; sourceTree = "<group>"; };
+		B10000097 /* AXAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXAccess.swift; sourceTree = "<group>"; };
+		B10000098 /* CorrectionLearner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionLearner.swift; sourceTree = "<group>"; };
+		B10000099 /* CorrectionWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionWatcher.swift; sourceTree = "<group>"; };
 		B10000010 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
 		B10000011 /* AccessibilityInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityInserter.swift; sourceTree = "<group>"; };
 		B10000012 /* ClipboardPaster.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPaster.swift; sourceTree = "<group>"; };
@@ -201,6 +211,8 @@
 				D10000008 /* TextInsertion */,
 				D10000009 /* Permissions */,
 				D10000020 /* Pipeline */,
+				D10000021 /* Context */,
+				D10000022 /* Learning */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -358,6 +370,25 @@
 			path = Pipeline;
 			sourceTree = "<group>";
 		};
+		D10000021 /* Context */ = {
+			isa = PBXGroup;
+			children = (
+				B10000095 /* TargetContext.swift */,
+				B10000096 /* TargetContextReader.swift */,
+				B10000097 /* AXAccess.swift */,
+			);
+			path = Context;
+			sourceTree = "<group>";
+		};
+		D10000022 /* Learning */ = {
+			isa = PBXGroup;
+			children = (
+				B10000098 /* CorrectionLearner.swift */,
+				B10000099 /* CorrectionWatcher.swift */,
+			);
+			path = Learning;
+			sourceTree = "<group>";
+		};
 		D10000030 /* Diagnostics */ = {
 			isa = PBXGroup;
 			children = (
@@ -505,6 +536,11 @@
 				A10000012 /* ClipboardPaster.swift in Sources */,
 				A10000013 /* PermissionManager.swift in Sources */,
 				A10000014 /* TranscriptionPipeline.swift in Sources */,
+				A10000095 /* TargetContext.swift in Sources */,
+				A10000096 /* TargetContextReader.swift in Sources */,
+				A10000097 /* AXAccess.swift in Sources */,
+				A10000098 /* CorrectionLearner.swift in Sources */,
+				A10000099 /* CorrectionWatcher.swift in Sources */,
 				A10000015 /* DictionaryEntry.swift in Sources */,
 				A10000016 /* Snippet.swift in Sources */,
 				A10000017 /* TranscriptionRecord.swift in Sources */,
